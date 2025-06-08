@@ -16,7 +16,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { deleteThread, getThreads } from "@/frontend/storage/queries"
 import { useLiveQuery, triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { Link, useNavigate, useLocation } from "react-router-dom"
-import { X, Plus, MessageSquare, Settings, ChevronLeft, ChevronRight } from "lucide-react"
+import { X, Plus, Settings, ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { memo } from "react"
 
@@ -40,7 +40,7 @@ export default function ChatSidebar() {
       >
         <Header />
         <SidebarContent className="flex-1 overflow-y-auto overflow-x-hidden">
-          <SidebarGroup className="px-2">
+          <SidebarGroup className="px-0">
             <SidebarGroupContent>
               <SidebarMenu className="space-y-1">
                 {threads?.map((thread) => {
@@ -48,8 +48,8 @@ export default function ChatSidebar() {
                     <SidebarMenuItem key={thread.id}>
                       <div
                         className={cn(
-                          "cursor-pointer group/thread h-10 flex items-center px-3 py-2 rounded-lg overflow-hidden w-full transition-colors hover:bg-accent/50",
-                          currentThreadId === thread.id && "bg-accent",
+                          "cursor-pointer group/thread h-10 flex items-center px-2 py-2 rounded-lg overflow-hidden w-full transition-colors hover:bg-primary/10",
+                          currentThreadId === thread.id && "bg-primary/15",
                         )}
                         onClick={() => {
                           if (currentThreadId === thread.id) {
@@ -58,7 +58,6 @@ export default function ChatSidebar() {
                           navigate(`/chat/${thread.id}`)
                         }}
                       >
-                        <MessageSquare size={16} className="shrink-0 mr-3" />
                         <span className="truncate text-sm font-medium flex-1">{thread.title}</span>
                         <Button
                           variant="ghost"
@@ -104,7 +103,7 @@ export default function ChatSidebar() {
 function PureHeader() {
   return (
     <SidebarHeader className="border-b px-4 py-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-center mb-4">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold tracking-tight">
             Chat<span className="text-primary">Studio</span>
