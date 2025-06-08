@@ -4,18 +4,19 @@ import React from 'react';
 import { Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Highlight, type Language, type PrismTheme } from 'prism-react-renderer';
+import { useTheme } from 'next-themes';
 
-// Custom Cursor Dark Midnight theme for Prism
-const cursorDarkMidnightTheme: PrismTheme = {
+// Tokyo Night Storm theme for Prism (Dark Mode)
+const tokyoNightStormTheme: PrismTheme = {
   plain: {
-    color: "#e6edf3",
-    backgroundColor: "#0d1117",
+    color: "#a9b1d6",
+    backgroundColor: "#24283b",
   },
   styles: [
     {
       types: ["comment", "prolog", "doctype", "cdata"],
       style: {
-        color: "#6a9955",
+        color: "#5f6996",
         fontStyle: "italic",
       },
     },
@@ -28,126 +29,272 @@ const cursorDarkMidnightTheme: PrismTheme = {
     {
       types: ["string", "attr-value"],
       style: {
-        color: "#ce9178",
+        color: "#9ece6a",
       },
     },
     {
       types: ["punctuation", "operator"],
       style: {
-        color: "#d4d4d4",
+        color: "#89ddff",
       },
     },
     {
       types: ["entity", "url", "symbol", "number", "boolean", "variable", "constant", "property", "regex", "inserted"],
       style: {
-        color: "#b5cea8",
+        color: "#ff9e64",
       },
     },
     {
       types: ["atrule", "keyword", "attr-name", "selector"],
       style: {
-        color: "#569cd6",
+        color: "#bb9af7",
         fontWeight: "bold",
       },
     },
     {
       types: ["function", "deleted", "tag"],
       style: {
-        color: "#dcdcaa",
+        color: "#7aa2f7",
       },
     },
     {
       types: ["function-variable"],
       style: {
-        color: "#dcdcaa",
+        color: "#7aa2f7",
       },
     },
     {
       types: ["tag", "selector", "keyword"],
       style: {
-        color: "#569cd6",
-        fontWeight: "bold",
+        color: "#f7768e",
       },
     },
     {
       types: ["class-name"],
       style: {
-        color: "#4ec9b0",
+        color: "#2ac3de",
       },
     },
     {
       types: ["variable"],
       style: {
-        color: "#9cdcfe",
+        color: "#c0caf5",
       },
     },
     {
       types: ["builtin"],
       style: {
-        color: "#4ec9b0",
+        color: "#2ac3de",
       },
     },
     {
       types: ["char"],
       style: {
-        color: "#ce9178",
+        color: "#9ece6a",
       },
     },
     {
       types: ["property-access"],
       style: {
-        color: "#9cdcfe",
+        color: "#7dcfff",
       },
     },
     {
       types: ["maybe-class-name"],
       style: {
-        color: "#4ec9b0",
+        color: "#2ac3de",
       },
     },
     {
       types: ["console"],
       style: {
-        color: "#9cdcfe",
+        color: "#c0caf5",
       },
     },
     {
       types: ["imports"],
       style: {
-        color: "#9cdcfe",
+        color: "#7dcfff",
       },
     },
     // Markdown specific
     {
       types: ["title"],
       style: {
-        color: "#569cd6",
+        color: "#89ddff",
         fontWeight: "bold",
       },
     },
     {
       types: ["parameter"],
       style: {
-        color: "#9cdcfe",
+        color: "#e0af68",
       },
     },
     {
       types: ["code"],
       style: {
-        color: "#ce9178",
+        color: "#bb9af7",
       },
     },
     // JSX/TSX specific
     {
       types: ["attr-name"],
       style: {
-        color: "#9cdcfe",
+        color: "#bb9af7",
       },
     },
     {
       types: ["script"],
       style: {
-        color: "#e6edf3",
+        color: "#a9b1d6",
+      },
+    },
+  ],
+};
+
+// Tokyo Night Light theme for Prism (Light Mode)
+const tokyoNightLightTheme: PrismTheme = {
+  plain: {
+    color: "#343b59",
+    backgroundColor: "#e6e7ed",
+  },
+  styles: [
+    {
+      types: ["comment", "prolog", "doctype", "cdata"],
+      style: {
+        color: "#888b94",
+        fontStyle: "italic",
+      },
+    },
+    {
+      types: ["namespace"],
+      style: {
+        opacity: 0.7,
+      },
+    },
+    {
+      types: ["string", "attr-value"],
+      style: {
+        color: "#385f0d",
+      },
+    },
+    {
+      types: ["punctuation", "operator"],
+      style: {
+        color: "#006C86",
+      },
+    },
+    {
+      types: ["entity", "url", "symbol", "number", "boolean", "variable", "constant", "property", "regex", "inserted"],
+      style: {
+        color: "#965027",
+      },
+    },
+    {
+      types: ["atrule", "keyword", "attr-name", "selector"],
+      style: {
+        color: "#65359d",
+        fontWeight: "bold",
+      },
+    },
+    {
+      types: ["function", "deleted", "tag"],
+      style: {
+        color: "#2959aa",
+      },
+    },
+    {
+      types: ["function-variable"],
+      style: {
+        color: "#2959aa",
+      },
+    },
+    {
+      types: ["tag", "selector", "keyword"],
+      style: {
+        color: "#8c4351",
+      },
+    },
+    {
+      types: ["class-name"],
+      style: {
+        color: "#006c86",
+      },
+    },
+    {
+      types: ["variable"],
+      style: {
+        color: "#343b58",
+      },
+    },
+    {
+      types: ["builtin"],
+      style: {
+        color: "#006c86",
+      },
+    },
+    {
+      types: ["char"],
+      style: {
+        color: "#385f0d",
+      },
+    },
+    {
+      types: ["property-access"],
+      style: {
+        color: "#0f4b6e",
+      },
+    },
+    {
+      types: ["maybe-class-name"],
+      style: {
+        color: "#006c86",
+      },
+    },
+    {
+      types: ["console"],
+      style: {
+        color: "#343b58",
+      },
+    },
+    {
+      types: ["imports"],
+      style: {
+        color: "#0f4b6e",
+      },
+    },
+    // Markdown specific
+    {
+      types: ["title"],
+      style: {
+        color: "#363c4d",
+        fontWeight: "bold",
+      },
+    },
+    {
+      types: ["parameter"],
+      style: {
+        color: "#8f5e15",
+      },
+    },
+    {
+      types: ["code"],
+      style: {
+        color: "#65359d",
+      },
+    },
+    // JSX/TSX specific
+    {
+      types: ["attr-name"],
+      style: {
+        color: "#65359d",
+      },
+    },
+    {
+      types: ["script"],
+      style: {
+        color: "#343b59",
       },
     },
   ],
@@ -166,6 +313,10 @@ export function CodeBlock({
   ...props
 }: CodeBlockProps) {
   const [copied, setCopied] = React.useState(false);
+  const { theme, systemTheme } = useTheme();
+
+  // Determine if we're in dark mode
+  const isDark = theme === 'dark' || (theme === 'system' && systemTheme === 'dark');
 
   const handleCopy = async () => {
     const text = String(children).replace(/\n$/, '');
@@ -181,7 +332,11 @@ export function CodeBlock({
   if (inline) {
     return (
       <code
-        className="bg-[#21262d] text-[#e6edf3] px-1.5 py-0.5 rounded text-sm font-mono border border-[#30363d]"
+        className={
+          isDark
+            ? "bg-[#1f2335] text-[#a9b1d6] px-1.5 py-0.5 rounded text-sm font-mono border border-[#282e44]"
+            : "bg-[#d6d8df] text-[#343b59] px-1.5 py-0.5 rounded text-sm font-mono border border-[#c1c2c7]"
+        }
         style={{ fontFeatureSettings: '"calt" 0, "liga" 0' }}
         {...props}
       >
@@ -194,17 +349,41 @@ export function CodeBlock({
   const language = className?.replace('language-', '') || 'text';
   const codeString = String(children).replace(/\n$/, '');
 
+  // Select theme based on current mode
+  const selectedTheme = isDark ? tokyoNightStormTheme : tokyoNightLightTheme;
+
+  // Dynamic styles based on theme
+  const containerClass = isDark 
+    ? "bg-[#24283b] rounded-lg border border-[#1b1e2e] overflow-hidden"
+    : "bg-[#e6e7ed] rounded-lg border border-[#c1c2c7] overflow-hidden";
+
+  const headerClass = isDark 
+    ? "flex items-center justify-between px-4 py-2 border-b border-[#1b1e2e] bg-[#1f2335]"
+    : "flex items-center justify-between px-4 py-2 border-b border-[#c1c2c7] bg-[#d6d8df]";
+
+  const labelClass = isDark 
+    ? "text-[#8089b3] text-sm font-medium font-mono"
+    : "text-[#363c4d] text-sm font-medium font-mono";
+
+  const buttonClass = isDark 
+    ? "h-6 text-[#8089b3] hover:text-[#a9b1d6] hover:bg-[#2c324a] text-xs border-0"
+    : "h-6 text-[#363c4d] hover:text-[#343b59] hover:bg-[#e6e7ed] text-xs border-0";
+
+  const preClass = isDark 
+    ? "p-4 overflow-x-auto bg-[#24283b] font-mono text-sm leading-6"
+    : "p-4 overflow-x-auto bg-[#e6e7ed] font-mono text-sm leading-6";
+
   return (
     <div className="not-prose flex flex-col my-4">
-      <div className="bg-[#0d1117] rounded-lg border border-[#21262d] overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[#21262d] bg-[#21262d]">
-          <span className="text-[#6e7681] text-sm font-medium font-mono">
+      <div className={containerClass}>
+        <div className={headerClass}>
+          <span className={labelClass}>
             {language || 'code'}
           </span>
           <Button 
             variant="ghost" 
             size="sm" 
-            className="h-6 text-[#6e7681] hover:text-[#e6edf3] hover:bg-[#30363d] text-xs border-0"
+            className={buttonClass}
             onClick={handleCopy}
           >
             {copied ? (
@@ -222,13 +401,13 @@ export function CodeBlock({
         </div>
         
         <Highlight
-          theme={cursorDarkMidnightTheme}
+          theme={selectedTheme}
           code={codeString}
           language={language as Language}
         >
           {({ className: highlightClassName, style, tokens, getLineProps, getTokenProps }) => (
             <pre
-              className={`p-4 overflow-x-auto bg-[#0d1117] font-mono text-sm leading-6 ${highlightClassName}`}
+              className={`${preClass} ${highlightClassName}`}
               style={{
                 ...style,
                 fontFeatureSettings: '"calt" 0, "liga" 0',
