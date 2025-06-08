@@ -32,7 +32,7 @@ class ChatDatabase extends Dexie {
   messageSummaries!: Table<MessageSummary>
 
   constructor() {
-    super("chat0")
+    super("chatstudio")
     this.version(1).stores({
       threads: "id, title, updatedAt, lastMessageAt",
       messages: "id, threadId, createdAt, [threadId+createdAt]",

@@ -19,7 +19,7 @@ export function useLiveQuery<T>(queryFn: () => Promise<T> | T, deps: any[] = [])
 
     // Listen for storage changes to update data when other tabs modify it
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.startsWith("chat0_")) {
+      if (e.key?.startsWith("chatstudio_")) {
         executeQuery()
       }
     }
@@ -31,11 +31,11 @@ export function useLiveQuery<T>(queryFn: () => Promise<T> | T, deps: any[] = [])
       executeQuery()
     }
 
-    window.addEventListener("chat0-update", handleCustomUpdate)
+    window.addEventListener("chatstudio-update", handleCustomUpdate)
 
     return () => {
       window.removeEventListener("storage", handleStorageChange)
-      window.removeEventListener("chat0-update", handleCustomUpdate)
+      window.removeEventListener("chatstudio-update", handleCustomUpdate)
     }
   }, [executeQuery])
 
@@ -44,5 +44,5 @@ export function useLiveQuery<T>(queryFn: () => Promise<T> | T, deps: any[] = [])
 
 // Helper function to trigger updates across the app
 export function triggerUpdate() {
-  window.dispatchEvent(new CustomEvent("chat0-update"))
+  window.dispatchEvent(new CustomEvent("chatstudio-update"))
 }

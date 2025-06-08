@@ -12,9 +12,8 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "Chat0",
-  description: "Fastest AI Chat App",
-    generator: 'v0.dev'
+  title: "Chat Studio",
+  description: "Fast AI Chat App"
 }
 
 export default function RootLayout({

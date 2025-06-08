@@ -27,7 +27,7 @@ export interface MessageSummary {
 
 class LocalStorageDB {
   private getKey(table: string) {
-    return `chat0_${table}`
+    return `Chat Studio_${table}`
   }
 
   private getData<T>(table: string): T[] {
