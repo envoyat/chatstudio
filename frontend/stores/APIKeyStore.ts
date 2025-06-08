@@ -1,7 +1,7 @@
 import { create, type Mutate, type StoreApi } from "zustand"
 import { persist } from "zustand/middleware"
 
-export const PROVIDERS = ["google", "openrouter", "openai"] as const
+export const PROVIDERS = ["google", "anthropic", "openai"] as const
 export type Provider = (typeof PROVIDERS)[number]
 
 type APIKeys = Record<Provider, string>
@@ -38,7 +38,7 @@ export const useAPIKeyStore = create<APIKeyStore>()(
     (set, get) => ({
       keys: {
         google: "",
-        openrouter: "",
+        anthropic: "",
         openai: "",
       },
 

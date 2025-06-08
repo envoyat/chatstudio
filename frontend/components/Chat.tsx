@@ -53,7 +53,7 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
   return (
     <div className="relative w-full h-screen flex flex-col">
       <main className="flex-1 overflow-y-auto">
-        <div className="w-full max-w-3xl pt-10 pb-44 mx-auto px-8">
+        <div className="w-full max-w-3xl pt-10 pb-44 mx-auto px-4">
           <Messages
             threadId={threadId}
             messages={messages}
