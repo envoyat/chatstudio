@@ -13,6 +13,7 @@ import { useModelStore } from "@/frontend/stores/ModelStore"
 import { Button } from "@/components/ui/button"
 import { MessageSquareMore } from "lucide-react"
 import { useChatNavigator } from "@/frontend/hooks/useChatNavigator"
+import { ThemeToggle } from "@/components/ui/theme-toggle"
 
 interface ChatProps {
   threadId: string
@@ -69,15 +70,18 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
         />
         <ChatInput threadId={threadId} input={input} status={status} append={append} setInput={setInput} stop={stop} />
       </main>
-      <Button
-        onClick={handleToggleNavigator}
-        variant="outline"
-        size="icon"
-        className="fixed right-16 top-4 z-20"
-        aria-label={isNavigatorVisible ? "Hide message navigator" : "Show message navigator"}
-      >
-        <MessageSquareMore className="h-5 w-5" />
-      </Button>
+      
+      <div className="fixed right-4 top-4 z-20 flex gap-2">
+        <ThemeToggle />
+        <Button
+          onClick={handleToggleNavigator}
+          variant="outline"
+          size="icon"
+          aria-label={isNavigatorVisible ? "Hide message navigator" : "Show message navigator"}
+        >
+          <MessageSquareMore className="h-5 w-5" />
+        </Button>
+      </div>
 
       <ChatNavigator
         threadId={threadId}
