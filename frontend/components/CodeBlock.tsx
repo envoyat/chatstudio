@@ -10,7 +10,6 @@ import { useTheme } from 'next-themes';
 const tokyoNightStormTheme: PrismTheme = {
   plain: {
     color: "#a9b1d6",
-    backgroundColor: "#24283b",
   },
   styles: [
     {
@@ -157,7 +156,6 @@ const tokyoNightStormTheme: PrismTheme = {
 const tokyoNightLightTheme: PrismTheme = {
   plain: {
     color: "#343b59",
-    backgroundColor: "#e6e7ed",
   },
   styles: [
     {
@@ -353,15 +351,15 @@ export function CodeBlock({
   const selectedTheme = isDark ? tokyoNightStormTheme : tokyoNightLightTheme;
 
   // Dynamic styles based on theme
-  const containerClass = "bg-card rounded-lg border border-border overflow-hidden";
+  const containerClass = "bg-secondary rounded-lg border border-border overflow-hidden";
 
-  const headerClass = "flex items-center justify-between px-4 py-2 border-b border-border bg-secondary";
+  const headerClass = "flex items-center justify-between px-4 py-2 border-b border-border bg-background";
 
-  const labelClass = "text-muted-foreground text-sm font-medium font-mono";
+  const labelClass = "text-foreground text-sm font-medium font-mono";
 
-  const buttonClass = "h-6 text-muted-foreground hover:text-foreground hover:bg-muted text-xs border-0";
+  const buttonClass = "h-6 text-foreground hover:text-muted-foreground hover:bg-muted text-xs border-0";
 
-  const preClass = "p-4 overflow-x-auto bg-card font-mono text-sm leading-6";
+  const preClass = "p-4 overflow-x-auto bg-secondary font-mono text-sm leading-6";
 
   return (
     <div className="not-prose flex flex-col my-4">
@@ -400,6 +398,7 @@ export function CodeBlock({
               className={`${preClass} ${highlightClassName}`}
               style={{
                 ...style,
+                backgroundColor: 'transparent',
                 fontFeatureSettings: '"calt" 0, "liga" 0',
               }}
               {...props}
