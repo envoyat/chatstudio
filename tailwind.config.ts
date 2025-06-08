@@ -71,6 +71,41 @@ const config = {
           4: "hsl(var(--chart-4))",
           5: "hsl(var(--chart-5))",
         },
+        // Tokyo Night specific colors for components that need them
+        'tokyo': {
+          // Light theme colors
+          'light': {
+            bg: '#e6e7ed',
+            'bg-secondary': '#d6d8df',
+            text: '#343b59',
+            'text-muted': '#888b94',
+            border: '#c1c2c7',
+            primary: '#65359d',
+            accent: '#006c86',
+            string: '#385f0d',
+            keyword: '#65359d',
+            function: '#2959aa',
+            comment: '#888b94',
+          },
+          // Dark theme colors
+          'dark': {
+            bg: '#24283b',
+            'bg-secondary': '#1f2335',
+            'bg-tertiary': '#2c324a',
+            border: '#1b1e2e',
+            text: '#a9b1d6',
+            'text-muted': '#8089b3',
+            'text-comment': '#5f6996',
+            primary: '#7aa2f7',
+            accent: '#bb9af7',
+            string: '#9ece6a',
+            keyword: '#bb9af7',
+            function: '#7aa2f7',
+            operator: '#89ddff',
+            number: '#ff9e64',
+            error: '#f7768e',
+          }
+        }
       },
       borderRadius: {
         lg: "var(--radius)",

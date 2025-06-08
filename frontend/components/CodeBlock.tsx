@@ -334,8 +334,8 @@ export function CodeBlock({
       <code
         className={
           isDark
-            ? "bg-[#1f2335] text-[#a9b1d6] px-1.5 py-0.5 rounded text-sm font-mono border border-[#282e44]"
-            : "bg-[#d6d8df] text-[#343b59] px-1.5 py-0.5 rounded text-sm font-mono border border-[#c1c2c7]"
+            ? "bg-secondary text-foreground px-1.5 py-0.5 rounded text-sm font-mono border border-border"
+            : "bg-secondary text-foreground px-1.5 py-0.5 rounded text-sm font-mono border border-border"
         }
         style={{ fontFeatureSettings: '"calt" 0, "liga" 0' }}
         {...props}
@@ -353,25 +353,15 @@ export function CodeBlock({
   const selectedTheme = isDark ? tokyoNightStormTheme : tokyoNightLightTheme;
 
   // Dynamic styles based on theme
-  const containerClass = isDark 
-    ? "bg-[#24283b] rounded-lg border border-[#1b1e2e] overflow-hidden"
-    : "bg-[#e6e7ed] rounded-lg border border-[#c1c2c7] overflow-hidden";
+  const containerClass = "bg-card rounded-lg border border-border overflow-hidden";
 
-  const headerClass = isDark 
-    ? "flex items-center justify-between px-4 py-2 border-b border-[#1b1e2e] bg-[#1f2335]"
-    : "flex items-center justify-between px-4 py-2 border-b border-[#c1c2c7] bg-[#d6d8df]";
+  const headerClass = "flex items-center justify-between px-4 py-2 border-b border-border bg-secondary";
 
-  const labelClass = isDark 
-    ? "text-[#8089b3] text-sm font-medium font-mono"
-    : "text-[#363c4d] text-sm font-medium font-mono";
+  const labelClass = "text-muted-foreground text-sm font-medium font-mono";
 
-  const buttonClass = isDark 
-    ? "h-6 text-[#8089b3] hover:text-[#a9b1d6] hover:bg-[#2c324a] text-xs border-0"
-    : "h-6 text-[#363c4d] hover:text-[#343b59] hover:bg-[#e6e7ed] text-xs border-0";
+  const buttonClass = "h-6 text-muted-foreground hover:text-foreground hover:bg-muted text-xs border-0";
 
-  const preClass = isDark 
-    ? "p-4 overflow-x-auto bg-[#24283b] font-mono text-sm leading-6"
-    : "p-4 overflow-x-auto bg-[#e6e7ed] font-mono text-sm leading-6";
+  const preClass = "p-4 overflow-x-auto bg-card font-mono text-sm leading-6";
 
   return (
     <div className="not-prose flex flex-col my-4">
