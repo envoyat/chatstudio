@@ -77,7 +77,7 @@ export function Sidebar({ className, ...props }: SidebarProps) {
     <div
       className={cn(
         "bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out flex flex-col",
-        state === "expanded" ? "w-64" : "w-12",
+        state === "expanded" ? "w-64" : "w-0",
         className,
       )}
       data-state={state}
