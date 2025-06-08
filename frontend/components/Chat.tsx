@@ -56,20 +56,26 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
   })
 
   return (
-    <div className="relative w-full">
-      <main className={`flex flex-col w-full max-w-3xl pt-10 pb-44 mx-auto transition-all duration-300 ease-in-out`}>
-        <Messages
-          threadId={threadId}
-          messages={messages}
-          status={status}
-          setMessages={setMessages}
-          reload={reload}
-          error={error}
-          registerRef={registerRef}
-          stop={stop}
-        />
-        <ChatInput threadId={threadId} input={input} status={status} append={append} setInput={setInput} stop={stop} />
+    <div className="relative w-full h-screen flex flex-col">
+      <main className="flex-1 overflow-y-auto">
+        <div className="w-full max-w-3xl pt-10 pb-44 mx-auto">
+          <Messages
+            threadId={threadId}
+            messages={messages}
+            status={status}
+            setMessages={setMessages}
+            reload={reload}
+            error={error}
+            registerRef={registerRef}
+            stop={stop}
+          />
+        </div>
       </main>
+      <div className="absolute bottom-0 left-0 right-0">
+        <div className="w-full max-w-3xl mx-auto px-4 pb-4">
+          <ChatInput threadId={threadId} input={input} status={status} append={append} setInput={setInput} stop={stop} />
+        </div>
+      </div>
       
       <div className="fixed right-4 top-4 z-20 flex gap-2">
         <ThemeToggle />
