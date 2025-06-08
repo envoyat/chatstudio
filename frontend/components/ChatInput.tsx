@@ -120,7 +120,7 @@ function PureChatInput({ threadId, input, status, setInput, append, stop }: Chat
                 value={input}
                 placeholder="What can I do for you?"
                 className={cn(
-                  "w-full px-4 py-3 border-none shadow-none dark:bg-transparent",
+                  "w-full px-4 py-3 border-none shadow-none bg-transparent",
                   "placeholder:text-muted-foreground resize-none",
                   "focus-visible:ring-0 focus-visible:ring-offset-0",
                   "scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30",
