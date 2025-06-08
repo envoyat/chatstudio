@@ -3,7 +3,6 @@
 import { useChat } from "@ai-sdk/react"
 import Messages from "./Messages"
 import ChatInput from "./ChatInput"
-import ChatNavigator from "./ChatNavigator"
 import type { UIMessage } from "ai"
 import { v4 as uuidv4 } from "uuid"
 import { createMessage } from "@/frontend/storage/queries"
@@ -11,8 +10,6 @@ import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { Button } from "@/components/ui/button"
-import { MessageSquareMore } from "lucide-react"
-import { useChatNavigator } from "@/frontend/hooks/useChatNavigator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 
 interface ChatProps {
@@ -24,8 +21,6 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
   const { getKey } = useAPIKeyStore()
   const selectedModel = useModelStore((state) => state.selectedModel)
   const modelConfig = useModelStore((state) => state.getModelConfig())
-
-  const { isNavigatorVisible, handleToggleNavigator, closeNavigator, registerRef, scrollToMessage } = useChatNavigator()
 
   const { messages, input, status, setInput, setMessages, append, stop, reload, error } = useChat({
     id: threadId,
@@ -66,7 +61,6 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
             setMessages={setMessages}
             reload={reload}
             error={error}
-            registerRef={registerRef}
             stop={stop}
           />
         </div>
@@ -79,22 +73,7 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
       
       <div className="fixed right-4 top-4 z-20 flex gap-2">
         <ThemeToggle />
-        <Button
-          onClick={handleToggleNavigator}
-          variant="outline"
-          size="icon"
-          aria-label={isNavigatorVisible ? "Hide message navigator" : "Show message navigator"}
-        >
-          <MessageSquareMore className="h-5 w-5" />
-        </Button>
       </div>
-
-      <ChatNavigator
-        threadId={threadId}
-        scrollToMessage={scrollToMessage}
-        isVisible={isNavigatorVisible}
-        onClose={closeNavigator}
-      />
     </div>
   )
 }

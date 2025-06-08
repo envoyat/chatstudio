@@ -16,7 +16,6 @@ function PureMessage({
   setMessages,
   reload,
   isStreaming,
-  registerRef,
   stop,
 }: {
   threadId: string
@@ -24,7 +23,6 @@ function PureMessage({
   setMessages: UseChatHelpers["setMessages"]
   reload: UseChatHelpers["reload"]
   isStreaming: boolean
-  registerRef: (id: string, ref: HTMLDivElement | null) => void
   stop: UseChatHelpers["stop"]
 }) {
   const [mode, setMode] = useState<"view" | "edit">("view")
@@ -44,7 +42,6 @@ function PureMessage({
             <div
               key={key}
               className="relative group px-4 py-3 rounded-xl bg-secondary border border-secondary-foreground/2 max-w-[80%]"
-              ref={(el) => registerRef(message.id, el)}
             >
               {mode === "edit" && (
                 <MessageEditor
