@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Please use bun as a package manager
+This is a next.js 15+ app with App Router but we are using React Router for navigation

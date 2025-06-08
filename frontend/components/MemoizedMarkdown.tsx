@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useMemo, useState, createContext, useContext } from "react"
+import { memo, useMemo, createContext, useContext } from "react"
 import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
@@ -8,7 +8,7 @@ import rehypeKatex from "rehype-katex"
 import { marked } from "marked"
 import type { ComponentProps } from "react"
 import type { ExtraProps } from "react-markdown"
-import { Check, Copy } from "lucide-react"
+import { CodeBlock as PrismCodeBlock } from "./CodeBlock"
 
 type CodeComponentProps = ComponentProps<"code"> & ExtraProps
 type MarkdownSize = "default" | "small"
@@ -26,14 +26,10 @@ function CodeBlock({ children, className, ...props }: CodeComponentProps) {
   const match = /language-(\w+)/.exec(className || "")
 
   if (match) {
-    const lang = match[1]
     return (
-      <div className="rounded-none">
-        <Codebar lang={lang} codeString={String(children)} />
-        <pre className="bg-gray-900 text-gray-100 p-4 rounded-b-md overflow-x-auto">
-          <code className="text-sm font-mono">{String(children)}</code>
-        </pre>
-      </div>
+      <PrismCodeBlock className={className} {...props}>
+        {children}
+      </PrismCodeBlock>
     )
   }
 
@@ -46,31 +42,6 @@ function CodeBlock({ children, className, ...props }: CodeComponentProps) {
     <code className={inlineCodeClasses} {...props}>
       {children}
     </code>
-  )
-}
-
-function Codebar({ lang, codeString }: { lang: string; codeString: string }) {
-  const [copied, setCopied] = useState(false)
-
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(codeString)
-      setCopied(true)
-      setTimeout(() => {
-        setCopied(false)
-      }, 2000)
-    } catch (error) {
-      console.error("Failed to copy code to clipboard:", error)
-    }
-  }
-
-  return (
-    <div className="flex justify-between items-center px-4 py-2 bg-secondary text-foreground rounded-t-md">
-      <span className="text-sm font-mono">{lang}</span>
-      <button onClick={copyToClipboard} className="text-sm cursor-pointer">
-        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-      </button>
-    </div>
   )
 }
 
