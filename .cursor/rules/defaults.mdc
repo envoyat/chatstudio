@@ -5,3 +5,9 @@ alwaysApply: true
 ---
 Please use bun as a package manager
 This is a next.js 15+ app with App Router but we are using React Router for navigation
+Do not run the Local Convex Server for me, if it is not running, instruct me to start it in a separate terminal window with:
+```bash
+bunx convex dev
+```
+
+Please do not try to edit or modify local .env files. Just tell me what to add or remove from them
