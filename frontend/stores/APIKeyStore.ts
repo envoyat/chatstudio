@@ -1,7 +1,7 @@
 import { create, type Mutate, type StoreApi } from "zustand"
 import { persist } from "zustand/middleware"
 
-export const PROVIDERS = ["google", "anthropic", "openai"] as const
+export const PROVIDERS = ["google", "anthropic", "openai", "openrouter"] as const
 export type Provider = (typeof PROVIDERS)[number]
 
 type APIKeys = Record<Provider, string>
@@ -40,6 +40,7 @@ export const useAPIKeyStore = create<APIKeyStore>()(
         google: "",
         anthropic: "",
         openai: "",
+        openrouter: "",
       },
 
       setKeys: (newKeys) => {
@@ -49,7 +50,12 @@ export const useAPIKeyStore = create<APIKeyStore>()(
       },
 
       hasRequiredKeys: () => {
-        return !!get().keys.google
+        const keys = get().keys
+        // If Google key is available (required), return true
+        if (keys.google) return true
+        // If no Google key but OpenRouter key is available, return true as fallback
+        if (keys.openrouter) return true
+        return false
       },
 
       getKey: (provider) => {

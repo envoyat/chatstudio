@@ -1,11 +1,13 @@
 import { create, type Mutate, type StoreApi } from "zustand"
 import { persist } from "zustand/middleware"
-import { type AIModel, getModelConfig, type ModelConfig } from "@/lib/models"
+import { type AIModel, getModelConfig, getEffectiveModelConfig, type ModelConfig } from "@/lib/models"
+import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 
 type ModelStore = {
   selectedModel: AIModel
   setModel: (model: AIModel) => void
   getModelConfig: () => ModelConfig
+  getEffectiveModelConfig: () => ModelConfig
 }
 
 type StoreWithPersist = Mutate<StoreApi<ModelStore>, [["zustand/persist", { selectedModel: AIModel }]]>
@@ -40,6 +42,12 @@ export const useModelStore = create<ModelStore>()(
       getModelConfig: () => {
         const { selectedModel } = get()
         return getModelConfig(selectedModel)
+      },
+
+      getEffectiveModelConfig: () => {
+        const { selectedModel } = get()
+        const getApiKey = useAPIKeyStore.getState().getKey
+        return getEffectiveModelConfig(selectedModel, getApiKey)
       },
     }),
     {

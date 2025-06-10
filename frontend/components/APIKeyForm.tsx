@@ -17,7 +17,7 @@ interface ApiKeyState {
 }
 
 interface Provider {
-  key: 'google' | 'anthropic' | 'openai'
+  key: 'google' | 'anthropic' | 'openai' | 'openrouter'
   name: string
   placeholder: string
   helpUrl: string
@@ -55,6 +55,15 @@ const providers: Provider[] = [
     models: ['GPT-4.1', 'GPT-4.1-mini', 'GPT-4.1-nano', 'o3', 'o4-mini'],
     validateKey: (key: string) => key.startsWith('sk-') && key.length > 40,
     validationMessage: 'API key format appears incorrect. OpenAI keys typically start with "sk-"'
+  },
+  {
+    key: 'openrouter',
+    name: 'OpenRouter',
+    placeholder: 'sk-or-...',
+    helpUrl: 'https://openrouter.ai/keys',
+    models: ['deepseek/deepseek-r1-0528:free', 'google/gemini-2.0-flash-exp:free'],
+    validateKey: (key: string) => key.startsWith('sk-or-') && key.length > 20,
+    validationMessage: 'API key format appears incorrect. OpenRouter keys typically start with "sk-or-"'
   }
 ]
 
@@ -64,10 +73,12 @@ export default function APIKeyForm() {
     google: ApiKeyState
     anthropic: ApiKeyState
     openai: ApiKeyState
+    openrouter: ApiKeyState
   }>({
     google: { value: "", showKey: false, isSaving: false, saveStatus: 'idle' },
     anthropic: { value: "", showKey: false, isSaving: false, saveStatus: 'idle' },
     openai: { value: "", showKey: false, isSaving: false, saveStatus: 'idle' },
+    openrouter: { value: "", showKey: false, isSaving: false, saveStatus: 'idle' },
   })
 
   useEffect(() => {
@@ -75,6 +86,7 @@ export default function APIKeyForm() {
       google: { ...prev.google, value: keys.google || "" },
       anthropic: { ...prev.anthropic, value: keys.anthropic || "" },
       openai: { ...prev.openai, value: keys.openai || "" },
+      openrouter: { ...prev.openrouter, value: keys.openrouter || "" },
     }))
   }, [keys])
 
