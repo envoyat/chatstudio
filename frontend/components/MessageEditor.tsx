@@ -31,10 +31,12 @@ export default function MessageEditor({
 }) {
   const [draftContent, setDraftContent] = useState(content)
   const getKey = useAPIKeyStore((state) => state.getKey)
+  const hasUserKey = useAPIKeyStore((state) => state.hasUserKey)
 
   const { complete } = useCompletion({
     api: "/api/completion",
-    ...(getKey("google") && {
+    // Only send user's Google API key if they have one, let server handle host key fallback
+    ...(hasUserKey("google") && {
       headers: { "X-Google-API-Key": getKey("google")! },
     }),
     onResponse: async (response) => {

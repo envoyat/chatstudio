@@ -9,6 +9,7 @@ import { createMessage } from "@/frontend/storage/queries"
 import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
+import { getEffectiveModelConfig } from "@/lib/models"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 
@@ -18,9 +19,11 @@ interface ChatProps {
 }
 
 export default function Chat({ threadId, initialMessages }: ChatProps) {
-  const { getKey } = useAPIKeyStore()
+  const { getKey, hasUserKey } = useAPIKeyStore()
   const selectedModel = useModelStore((state) => state.selectedModel)
-  const modelConfig = useModelStore((state) => state.getModelConfig())
+  
+  // Compute effective model config directly in component to avoid infinite loop
+  const modelConfig = getEffectiveModelConfig(selectedModel, getKey, hasUserKey)
 
   const { messages, input, status, setInput, setMessages, append, stop, reload, error } = useChat({
     id: threadId,
@@ -43,7 +46,8 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
       }
     },
     headers: {
-      [modelConfig.headerKey]: getKey(modelConfig.provider) || "",
+      // Only send user's API key if they have one, let server handle host key fallback
+      ...(hasUserKey(modelConfig.provider) ? { [modelConfig.headerKey]: getKey(modelConfig.provider) || "" } : {}),
     },
     body: {
       model: selectedModel,

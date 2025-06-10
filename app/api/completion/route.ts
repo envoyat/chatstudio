@@ -2,10 +2,17 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { generateText } from "ai"
 import { headers } from "next/headers"
 import { NextResponse } from "next/server"
+import { getHostAPIKey } from "@/lib/host-config"
 
 export async function POST(req: Request) {
   const headersList = await headers()
-  const googleApiKey = headersList.get("X-Google-API-Key")
+  const userGoogleApiKey = headersList.get("X-Google-API-Key")
+
+  // Try user key first, then fallback to host key
+  let googleApiKey = userGoogleApiKey
+  if (!googleApiKey) {
+    googleApiKey = getHostAPIKey("google")
+  }
 
   if (!googleApiKey) {
     return NextResponse.json(

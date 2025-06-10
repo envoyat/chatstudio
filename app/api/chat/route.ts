@@ -4,6 +4,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider"
 import { streamText, smoothStream } from "ai"
 import { headers } from "next/headers"
 import { getModelConfig, type AIModel } from "@/lib/models"
+import { getHostAPIKey } from "@/lib/host-config"
 import { type NextRequest, NextResponse } from "next/server"
 
 export const maxDuration = 60
@@ -15,7 +16,26 @@ export async function POST(req: NextRequest) {
 
     const modelConfig = getModelConfig(model as AIModel)
 
-    const apiKey = headersList.get(modelConfig.headerKey) as string
+    // Get user's API key from headers
+    const userApiKey = headersList.get(modelConfig.headerKey) as string
+    
+    // If no user key, try to use host key for supported providers
+    let apiKey = userApiKey
+    if (!apiKey && modelConfig.provider === "google") {
+      const hostKey = getHostAPIKey("google")
+      if (hostKey) {
+        apiKey = hostKey
+      }
+    }
+
+    if (!apiKey) {
+      return new Response(JSON.stringify({ 
+        error: `API key is required for ${modelConfig.provider}. Please add your API key in settings.` 
+      }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
 
     let aiModel
     switch (modelConfig.provider) {

@@ -1,4 +1,5 @@
 import type { Provider } from "@/frontend/stores/APIKeyStore"
+import { hasHostAPIKey, FREE_MODELS_WITH_HOST_KEY } from "@/lib/host-config"
 
 export const AI_MODELS = [
   "Gemini 2.5 Pro",
@@ -23,6 +24,7 @@ export type ModelConfig = {
   provider: Provider
   headerKey: string
   openRouterModelId?: string
+  isUsingHostKey?: boolean
 }
 
 export const MODEL_CONFIGS = {
@@ -113,17 +115,23 @@ export const getModelConfig = (modelName: AIModel): ModelConfig => {
 // Get the effective model configuration based on available API keys
 export const getEffectiveModelConfig = (
   modelName: AIModel,
-  getApiKey: (provider: Provider) => string | null
+  getApiKey: (provider: Provider) => string | null,
+  hasUserKey?: (provider: Provider) => boolean
 ): ModelConfig => {
   const baseConfig = MODEL_CONFIGS[modelName]
   
-  // Check if the original provider has an API key
-  const originalProviderKey = getApiKey(baseConfig.provider)
-  if (originalProviderKey) {
-    return baseConfig
+  // Check if the user has their own API key for the original provider
+  const userProviderKey = getApiKey(baseConfig.provider)
+  if (userProviderKey) {
+    return { ...baseConfig, isUsingHostKey: false }
   }
   
-  // If no original provider key and OpenRouter model exists, use OpenRouter
+  // If it's a free model and user doesn't have their own key, check for host key
+  if (FREE_MODELS_WITH_HOST_KEY.includes(modelName as any) && hasHostAPIKey(baseConfig.provider)) {
+    return { ...baseConfig, isUsingHostKey: true }
+  }
+  
+  // If no original provider key (user or host) and OpenRouter model exists, use OpenRouter
   const openRouterKey = getApiKey("openrouter")
   if (openRouterKey && baseConfig.openRouterModelId) {
     return {
@@ -131,9 +139,31 @@ export const getEffectiveModelConfig = (
       provider: "openrouter",
       headerKey: "X-OpenRouter-API-Key",
       openRouterModelId: baseConfig.openRouterModelId,
+      isUsingHostKey: false,
     }
   }
   
-  // Return original config as fallback
-  return baseConfig
+  // Return original config as fallback (may not work without proper API key)
+  return { ...baseConfig, isUsingHostKey: false }
+}
+
+// Check if a model is available based on API key availability
+export const isModelAvailable = (
+  modelName: AIModel,
+  getApiKey: (provider: Provider) => string | null
+): boolean => {
+  const baseConfig = MODEL_CONFIGS[modelName]
+  
+  // Check if user has the original provider key
+  if (getApiKey(baseConfig.provider)) return true
+  
+  // Check if it's a free model that can use host key
+  if (FREE_MODELS_WITH_HOST_KEY.includes(modelName as any) && hasHostAPIKey(baseConfig.provider)) {
+    return true
+  }
+  
+  // Check if OpenRouter is available as fallback
+  if (getApiKey("openrouter") && baseConfig.openRouterModelId) return true
+  
+  return false
 }

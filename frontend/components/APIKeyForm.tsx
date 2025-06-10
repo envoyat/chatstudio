@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Save, Key, Eye, EyeOff } from "lucide-react"
+import { Save, Key, Eye, EyeOff, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { Badge } from "@/components/ui/badge"
+import { hasHostAPIKey, FREE_MODELS_WITH_HOST_KEY } from "@/lib/host-config"
 
 interface ApiKeyState {
   value: string
@@ -25,6 +26,8 @@ interface Provider {
   validateKey: (key: string) => boolean
   validationMessage: string
   required?: boolean
+  hasHostKey?: boolean
+  freeModels?: string[]
 }
 
 const providers: Provider[] = [
@@ -36,7 +39,8 @@ const providers: Provider[] = [
     models: ['Gemini 2.5 Pro', 'Gemini 2.5 Flash', 'Gemini 2.0 Flash'],
     validateKey: (key: string) => key.startsWith('AIza') && key.length > 30,
     validationMessage: 'API key format appears incorrect. Google AI keys typically start with "AIza"',
-    required: true
+    hasHostKey: hasHostAPIKey('google'),
+    freeModels: FREE_MODELS_WITH_HOST_KEY.filter(model => ['Gemini 2.5 Flash', 'Gemini 2.0 Flash'].includes(model))
   },
   {
     key: 'anthropic',
@@ -68,7 +72,7 @@ const providers: Provider[] = [
 ]
 
 export default function APIKeyForm() {
-  const { keys, setKeys } = useAPIKeyStore()
+  const { keys, setKeys, clearKey, hasUserKey } = useAPIKeyStore()
   const [apiKeys, setApiKeys] = useState<{
     google: ApiKeyState
     anthropic: ApiKeyState
@@ -133,18 +137,35 @@ export default function APIKeyForm() {
     }
   }
 
+  const handleClear = async (providerKey: keyof typeof apiKeys) => {
+    const provider = providers.find(p => p.key === providerKey)
+    if (!provider) return
+
+    try {
+      clearKey(providerKey)
+      updateApiKey(providerKey, { value: "" })
+      toast.success(`${provider.name} API key cleared`)
+    } catch (error) {
+      console.error(`Failed to clear ${provider.name} API key:`, error)
+      toast.error(`Failed to clear ${provider.name} API key`)
+    }
+  }
+
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
         <div className="flex items-center gap-2">
           <Key className="h-5 w-5" />
-          <CardTitle>Add Your API Keys To Start Chatting</CardTitle>
+          <CardTitle>API Keys - Start Chatting</CardTitle>
         </div>
-        <CardDescription>Keys are stored locally in your browser.</CardDescription>
+        <CardDescription>
+          Free access to Gemini models is available! Add your own keys for increased rate limits and access to all models.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {providers.map((provider) => {
           const keyState = apiKeys[provider.key]
+          const hasUserApiKey = hasUserKey(provider.key)
           
           return (
             <div key={provider.key} className="space-y-4 p-6 border border-border rounded-lg bg-card">
@@ -152,24 +173,53 @@ export default function APIKeyForm() {
                 <Key className="h-5 w-5 text-primary" />
                 <h3 className="text-lg font-semibold">
                   {provider.name} API Key
-                  {provider.required && <span className="text-muted-foreground text-sm font-normal ml-2">(Required)</span>}
+                  {provider.hasHostKey && (
+                    <span className="text-muted-foreground text-sm font-normal ml-2">(Optional - Free tier available)</span>
+                  )}
+                  {!provider.hasHostKey && provider.required && (
+                    <span className="text-muted-foreground text-sm font-normal ml-2">(Required)</span>
+                  )}
                 </h3>
               </div>
               
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Enter your {provider.name} API key to enable {provider.name} models. Your key is stored locally and securely.
-                </p>
-                
-                <div className="flex gap-2">
-                  {provider.models.map((model) => (
-                    <Badge key={model} variant="secondary">{model}</Badge>
-                  ))}
-                </div>
+                {provider.hasHostKey ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      🎉 Free access available! You can use the following models without an API key:
+                    </p>
+                    <div className="flex gap-2">
+                      {provider.freeModels?.map((model) => (
+                        <Badge key={model} variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          {model} (Free)
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Add your own {provider.name} API key for increased rate limits and access to all models:
+                    </p>
+                    <div className="flex gap-2">
+                      {provider.models.filter(model => !provider.freeModels?.includes(model)).map((model) => (
+                        <Badge key={model} variant="outline">{model}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Enter your {provider.name} API key to enable {provider.name} models. Your key is stored locally and securely.
+                    </p>
+                    <div className="flex gap-2">
+                      {provider.models.map((model) => (
+                        <Badge key={model} variant="secondary">{model}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="space-y-2">
                   <label htmlFor={`${provider.key}ApiKey`} className="text-sm font-medium text-foreground">
-                    API Key
+                    API Key {hasUserApiKey && <span className="text-green-600 dark:text-green-400">(Active)</span>}
                   </label>
                   <div className="relative">
                     <Input
@@ -220,14 +270,27 @@ export default function APIKeyForm() {
                   </div>
                 )}
 
-                <Button
-                  onClick={() => handleSave(provider.key)}
-                  disabled={keyState.isSaving || (!keyState.value.trim() && provider.required)}
-                  className="flex items-center gap-2"
-                >
-                  <Save className="h-4 w-4" />
-                  {keyState.isSaving ? 'Saving...' : `Save ${provider.name} Key`}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => handleSave(provider.key)}
+                    disabled={keyState.isSaving || (!keyState.value.trim() && provider.required)}
+                    className="flex items-center gap-2"
+                  >
+                    <Save className="h-4 w-4" />
+                    {keyState.isSaving ? 'Saving...' : `Save ${provider.name} Key`}
+                  </Button>
+                  
+                  {hasUserApiKey && (
+                    <Button
+                      onClick={() => handleClear(provider.key)}
+                      variant="outline"
+                      className="flex items-center gap-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Clear Key
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           )

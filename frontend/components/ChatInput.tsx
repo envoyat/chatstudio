@@ -15,7 +15,7 @@ import { createMessage, createThread } from "@/frontend/storage/queries"
 import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
-import { AI_MODELS, type AIModel, getEffectiveModelConfig } from "@/lib/models"
+import { AI_MODELS, type AIModel, getEffectiveModelConfig, isModelAvailable } from "@/lib/models"
 import KeyPrompt from "@/frontend/components/KeyPrompt"
 import type { UIMessage } from "ai"
 import { v4 as uuidv4 } from "uuid"
@@ -168,9 +168,7 @@ const PureChatModelDropdown = () => {
 
   const isModelEnabled = useCallback(
     (model: AIModel) => {
-      const effectiveConfig = getEffectiveModelConfig(model, getKey)
-      const apiKey = getKey(effectiveConfig.provider)
-      return !!apiKey
+      return isModelAvailable(model, getKey)
     },
     [getKey],
   )
