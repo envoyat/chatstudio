@@ -1,7 +1,6 @@
 "use client"
 
-import { createMessage, deleteTrailingMessages, createMessageSummary } from "@/frontend/storage/queries"
-import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
+import { useCreateMessage, useDeleteTrailingMessages, useCreateMessageSummary } from "@/frontend/storage/convex-queries"
 import { type UseChatHelpers, useCompletion } from "@ai-sdk/react"
 import { useState } from "react"
 import type { UIMessage } from "ai"
@@ -11,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { toast } from "sonner"
+import type { Id } from "../../convex/_generated/dataModel"
 
 export default function MessageEditor({
   threadId,
@@ -32,6 +32,10 @@ export default function MessageEditor({
   const [draftContent, setDraftContent] = useState(content)
   const getKey = useAPIKeyStore((state) => state.getKey)
   const hasUserKey = useAPIKeyStore((state) => state.hasUserKey)
+  
+  const createMessageMutation = useCreateMessage()
+  const deleteTrailingMessagesMutation = useDeleteTrailingMessages()
+  const createMessageSummaryMutation = useCreateMessageSummary()
 
   const { complete } = useCompletion({
     api: "/api/completion",
@@ -45,8 +49,11 @@ export default function MessageEditor({
 
         if (response.ok) {
           const { title, messageId, threadId } = payload
-          await createMessageSummary(threadId, messageId, title)
-          triggerUpdate()
+          await createMessageSummaryMutation({
+            threadId: threadId as Id<"threads">,
+            messageId: messageId as Id<"messages">,
+            content: title,
+          })
         } else {
           toast.error(payload.error || "Failed to generate a summary for the message")
         }
@@ -58,7 +65,10 @@ export default function MessageEditor({
 
   const handleSave = async () => {
     try {
-      await deleteTrailingMessages(threadId, message.createdAt as Date)
+      await deleteTrailingMessagesMutation({
+        threadId: threadId as Id<"threads">,
+        createdAt: (message.createdAt as Date)?.getTime() || Date.now(),
+      })
 
       const updatedMessage = {
         ...message,
@@ -73,8 +83,14 @@ export default function MessageEditor({
         createdAt: new Date(),
       }
 
-      await createMessage(threadId, updatedMessage)
-      triggerUpdate()
+      await createMessageMutation({
+        threadId: threadId as Id<"threads">,
+        messageId: updatedMessage.id,
+        parts: updatedMessage.parts,
+        content: updatedMessage.content,
+        role: updatedMessage.role,
+        createdAt: updatedMessage.createdAt?.getTime() || Date.now(),
+      })
 
       setMessages((messages) => {
         const index = messages.findIndex((m) => m.id === message.id)

@@ -13,17 +13,18 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { deleteThread, getThreads } from "@/frontend/storage/queries"
-import { useLiveQuery, triggerUpdate } from "@/frontend/hooks/useLiveQuery"
+import { useGetThreads, useDeleteThread } from "@/frontend/storage/convex-queries"
 import { Link, useNavigate, useLocation } from "react-router-dom"
 import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { memo } from "react"
+import { AuthButton } from "@/components/AuthButton"
 
 export default function ChatSidebar() {
   const navigate = useNavigate()
   const location = useLocation()
-  const threads = useLiveQuery(() => getThreads(), [])
+  const threads = useGetThreads()
+  const deleteThreadMutation = useDeleteThread()
   const { state, toggle } = useSidebar()
 
   // Extract thread ID from various possible paths
@@ -66,8 +67,7 @@ export default function ChatSidebar() {
                           onClick={async (event) => {
                             event.preventDefault()
                             event.stopPropagation()
-                            await deleteThread(thread.id)
-                            triggerUpdate()
+                            await deleteThreadMutation({ threadId: thread.id as any })
                             navigate(`/chat`)
                           }}
                         >
@@ -133,7 +133,8 @@ const Header = memo(PureHeader)
 
 const PureFooter = () => {
   return (
-    <SidebarFooter className="border-t p-4">
+    <SidebarFooter className="border-t p-4 space-y-2">
+      <AuthButton />
       <Link 
         to="/settings" 
         className={cn(

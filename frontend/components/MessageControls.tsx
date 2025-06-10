@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils"
 import { Check, Copy, RefreshCcw, SquarePen } from "lucide-react"
 import type { UIMessage } from "ai"
 import type { UseChatHelpers } from "@ai-sdk/react"
-import { deleteTrailingMessages } from "@/frontend/storage/queries"
-import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
+import { useDeleteTrailingMessages } from "@/frontend/storage/convex-queries"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
+import type { Id } from "../../convex/_generated/dataModel"
 
 interface MessageControlsProps {
   threadId: string
@@ -31,6 +31,7 @@ export default function MessageControls({
 }: MessageControlsProps) {
   const [copied, setCopied] = useState(false)
   const hasRequiredKeys = useAPIKeyStore((state) => state.hasRequiredKeys())
+  const deleteTrailingMessagesMutation = useDeleteTrailingMessages()
 
   const handleCopy = () => {
     navigator.clipboard.writeText(content)
@@ -45,7 +46,11 @@ export default function MessageControls({
     stop()
 
     if (message.role === "user") {
-      await deleteTrailingMessages(threadId, message.createdAt as Date, false)
+      await deleteTrailingMessagesMutation({
+        threadId: threadId as Id<"threads">,
+        createdAt: (message.createdAt as Date)?.getTime() || Date.now(),
+        gte: false,
+      })
 
       setMessages((messages) => {
         const index = messages.findIndex((m) => m.id === message.id)
@@ -57,7 +62,10 @@ export default function MessageControls({
         return messages
       })
     } else {
-      await deleteTrailingMessages(threadId, message.createdAt as Date)
+      await deleteTrailingMessagesMutation({
+        threadId: threadId as Id<"threads">,
+        createdAt: (message.createdAt as Date)?.getTime() || Date.now(),
+      })
 
       setMessages((messages) => {
         const index = messages.findIndex((m) => m.id === message.id)
@@ -69,8 +77,6 @@ export default function MessageControls({
         return messages
       })
     }
-
-    triggerUpdate()
 
     setTimeout(() => {
       reload()

@@ -3,8 +3,12 @@ import ChatLayout from "./ChatLayout"
 import Home from "./routes/Home"
 import Thread from "./routes/Thread"
 import Settings from "./routes/Settings"
+import { useDataMigration } from "./hooks/useDataMigration"
 
 export default function App() {
+  // Handle migration of anonymous data when user signs in
+  useDataMigration();
+  
   return (
     <BrowserRouter>
       <Routes>

@@ -5,13 +5,13 @@ import Messages from "./Messages"
 import ChatInput from "./ChatInput"
 import type { UIMessage } from "ai"
 import { v4 as uuidv4 } from "uuid"
-import { createMessage } from "@/frontend/storage/queries"
-import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
+import { useCreateMessage } from "@/frontend/storage/convex-queries"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getEffectiveModelConfig } from "@/lib/models"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
+import type { Id } from "../../convex/_generated/dataModel"
 
 interface ChatProps {
   threadId: string
@@ -21,6 +21,7 @@ interface ChatProps {
 export default function Chat({ threadId, initialMessages }: ChatProps) {
   const { getKey, hasUserKey } = useAPIKeyStore()
   const selectedModel = useModelStore((state) => state.selectedModel)
+  const createMessageMutation = useCreateMessage()
   
   // Compute effective model config directly in component to avoid infinite loop
   const modelConfig = getEffectiveModelConfig(selectedModel, getKey, hasUserKey)
@@ -39,8 +40,14 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
       }
 
       try {
-        await createMessage(threadId, aiMessage)
-        triggerUpdate()
+        await createMessageMutation({
+          threadId: threadId as Id<"threads">,
+          messageId: aiMessage.id,
+          parts: aiMessage.parts,
+          content: aiMessage.content,
+          role: aiMessage.role,
+          createdAt: aiMessage.createdAt?.getTime() || Date.now(),
+        })
       } catch (error) {
         console.error(error)
       }
