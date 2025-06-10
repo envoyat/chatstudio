@@ -16,7 +16,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { deleteThread, getThreads } from "@/frontend/storage/queries"
 import { useLiveQuery, triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { Link, useNavigate, useLocation } from "react-router-dom"
-import { X, Plus, Settings, ChevronLeft, ChevronRight } from "lucide-react"
+import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { memo } from "react"
 
@@ -105,6 +105,7 @@ function PureHeader() {
     <SidebarHeader className="border-b px-4 py-4">
       <div className="flex items-center justify-center mb-4">
         <div className="flex items-center gap-2">
+          <MessageSquare size={22} className="shrink-0" />
           <h1 className="text-xl font-bold tracking-tight">
             Chat<span className="text-primary">Studio</span>
           </h1>

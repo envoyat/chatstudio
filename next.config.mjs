@@ -13,7 +13,7 @@ const nextConfig = {
     return {
       fallback: [
         {
-          source: '/:path*',
+          source: '/:path((?!favicon\\.ico$).*)*',
           destination: '/',
         },
       ],
