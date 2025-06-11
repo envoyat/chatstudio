@@ -5,6 +5,7 @@ import type { UseChatHelpers } from "@ai-sdk/react"
 import equal from "fast-deep-equal"
 import MessageLoading from "@/components/ui/message-loading"
 import Error from "./Error"
+import type { Id } from "@/convex/_generated/dataModel"
 
 function PureMessages({
   threadId,
@@ -14,6 +15,7 @@ function PureMessages({
   reload,
   error,
   stop,
+  convexThreadId,
 }: {
   threadId: string
   messages: UIMessage[]
@@ -22,6 +24,7 @@ function PureMessages({
   status: UseChatHelpers["status"]
   error: UseChatHelpers["error"]
   stop: UseChatHelpers["stop"]
+  convexThreadId: Id<"threads"> | null
 }) {
   return (
     <section className="flex flex-col space-y-12">
@@ -34,6 +37,7 @@ function PureMessages({
           setMessages={setMessages}
           reload={reload}
           stop={stop}
+          convexThreadId={convexThreadId}
         />
       ))}
       {status === "submitted" && <MessageLoading />}
@@ -47,6 +51,7 @@ const Messages = memo(PureMessages, (prevProps, nextProps) => {
   if (prevProps.error !== nextProps.error) return false
   if (prevProps.messages.length !== nextProps.messages.length) return false
   if (!equal(prevProps.messages, nextProps.messages)) return false
+  if (prevProps.convexThreadId !== nextProps.convexThreadId) return false
   return true
 })
 

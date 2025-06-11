@@ -11,8 +11,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import useAutoResizeTextarea from "@/hooks/useAutoResizeTextArea"
 import type { UseChatHelpers } from "@ai-sdk/react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { createMessage, createThread } from "@/frontend/storage/queries"
-import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { AI_MODELS, type AIModel, getEffectiveModelConfig, isModelAvailable } from "@/lib/models"
@@ -35,6 +33,7 @@ interface ChatInputProps {
   append: UseChatHelpers["append"]
   stop: UseChatHelpers["stop"]
   convexThreadId: Id<"threads"> | null; // New prop: Convex thread ID if available
+  onConvexThreadIdChange: React.Dispatch<React.SetStateAction<Id<"threads"> | null>>; // New prop for updating convex thread ID
 }
 
 interface StopButtonProps {
@@ -54,7 +53,7 @@ const createUserMessage = (id: string, text: string): UIMessage => ({
   createdAt: new Date(),
 })
 
-function PureChatInput({ threadId, input, status, setInput, append, stop, convexThreadId }: ChatInputProps) {
+function PureChatInput({ threadId, input, status, setInput, append, stop, convexThreadId, onConvexThreadIdChange }: ChatInputProps) {
   const canChat = useAPIKeyStore((state) => state.hasRequiredKeys())
 
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
@@ -92,6 +91,7 @@ function PureChatInput({ threadId, input, status, setInput, append, stop, convex
           uuid: threadId, // Use the client-generated UUID from URL as the Convex thread's UUID
         });
         threadDbId = newConvexThreadId;
+        onConvexThreadIdChange(newConvexThreadId); // Update the convex thread ID in parent component
         // Navigate if it was a new chat session before saving to DB
         if (isNewThreadRoute) {
           navigate(`/chat/${threadId}`);
@@ -109,14 +109,12 @@ function PureChatInput({ threadId, input, status, setInput, append, stop, convex
       });
 
     } else {
-      // Unauthenticated flow: use local storage (Dexie)
-      threadDbId = threadId; // Local storage uses the UUID directly
+      // Unauthenticated flow: ephemeral chat (no persistence)
+      threadDbId = threadId; // Use UUID for UI purposes only
       if (isNewThreadRoute) {
-        createThread(threadId); // Create local thread if new
         navigate(`/chat/${threadId}`);
       }
-      createMessage(threadId, createUserMessage(uiMessageId, currentInput.trim()));
-      messageDbId = uiMessageId; // For local storage, messageDbId is the UUID
+      messageDbId = uiMessageId; // Use UI message ID
     }
 
     const userMessage = createUserMessage(uiMessageId, currentInput.trim());
@@ -139,9 +137,7 @@ function PureChatInput({ threadId, input, status, setInput, append, stop, convex
         },
       });
     }
-    
-    triggerUpdate();
-  }, [input, isDisabled, setInput, adjustHeight, append, textareaRef, threadId, complete, navigate, location, isAuthenticated, convexThreadId, convexCreateThread, convexCreateMessage])
+  }, [input, isDisabled, setInput, adjustHeight, append, textareaRef, threadId, complete, navigate, location, isAuthenticated, convexThreadId, convexCreateThread, convexCreateMessage, onConvexThreadIdChange])
 
   if (!canChat) {
     return <KeyPrompt />

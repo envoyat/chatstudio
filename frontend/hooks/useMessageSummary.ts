@@ -2,16 +2,8 @@ import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { toast } from "sonner"
-import { updateThread, createMessageSummary as createMessageSummaryLocally } from "@/frontend/storage/queries"
-import { triggerUpdate } from "./useLiveQuery"
 import { useConvexAuth } from "convex/react"
 import type { Id } from "@/convex/_generated/dataModel";
-
-interface MessageSummaryPayload {
-  success: boolean
-  title?: string
-  error?: string
-}
 
 export const useMessageSummary = () => {
   const getKey = useAPIKeyStore((state) => state.getKey)
@@ -52,11 +44,8 @@ export const useMessageSummary = () => {
           userGoogleApiKey,
         })
       } else {
-        await createMessageSummaryLocally(threadId, messageId, prompt.slice(0, 50) + "...");
-        if (isTitle) {
-          await updateThread(threadId, prompt.slice(0, 50) + "...");
-        }
-        triggerUpdate();
+        // For unauthenticated users, we skip generating summaries since chats are ephemeral
+        console.log("Skipping summary generation for unauthenticated user")
       }
     } catch (error: any) {
       console.error("Error generating title:", error)

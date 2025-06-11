@@ -1,7 +1,6 @@
 "use client"
 
-import { createMessage, deleteTrailingMessages, createMessageSummary } from "@/frontend/storage/queries"
-import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
+// Removed local storage imports
 import { type UseChatHelpers } from "@ai-sdk/react"
 import { useState } from "react"
 import type { UIMessage } from "ai"
@@ -16,6 +15,7 @@ import { api } from "@/convex/_generated/api"
 import { useConvexAuth } from "convex/react" // Import useConvexAuth
 import type { Id } from "@/convex/_generated/dataModel"; // Import Convex Id type
 import { useMessageSummary } from "@/frontend/hooks/useMessageSummary"
+import { useDeleteTrailingMessages, useCreateMessage } from "@/lib/convex-hooks"
 
 export default function MessageEditor({
   threadId, // This is the UUID from the URL
@@ -25,6 +25,8 @@ export default function MessageEditor({
   reload,
   setMode,
   stop,
+  convexThreadId,
+  convexMessageId,
 }: {
   threadId: string
   message: UIMessage
@@ -33,57 +35,56 @@ export default function MessageEditor({
   setMode: Dispatch<SetStateAction<"view" | "edit">>
   reload: UseChatHelpers["reload"]
   stop: UseChatHelpers["stop"]
+  convexThreadId: Id<"threads"> | null
+  convexMessageId: Id<"messages">
 }) {
   const [draftContent, setDraftContent] = useState(content)
   const getKey = useAPIKeyStore((state) => state.getKey)
   const hasUserKey = useAPIKeyStore((state) => state.hasUserKey)
   const { isAuthenticated } = useConvexAuth(); // Get authentication status
   const { complete } = useMessageSummary(); // Hook for message summary
-
-  const generateTitleMutation = useMutation(api.messages.generateTitleForMessage)
+  const deleteTrailingMessages = useDeleteTrailingMessages();
+  const createMessage = useCreateMessage();
 
   const handleSave = async () => {
+    if (!isAuthenticated || !convexThreadId) {
+      toast.error("Cannot edit messages in unauthenticated chats.")
+      return
+    }
+
+    if (!message.createdAt) {
+      toast.error("Cannot edit message without creation timestamp.")
+      return
+    }
+
     try {
-      // For authenticated users, `message.createdAt` will be a timestamp from Convex
-      // For unauthenticated users, it's a JS Date object from local storage
-      await deleteTrailingMessages(threadId, message.createdAt as Date)
-
-      const updatedMessage: UIMessage = {
-        ...message,
-        id: uuidv4(), // New UI ID for the edited message
-        content: draftContent,
-        parts: [
-          {
-            type: "text" as const,
-            text: draftContent,
-          },
-        ],
-        createdAt: new Date(), // New creation date for the edited message
-      }
-
-      // Save the updated message to local storage (for both auth states since we're dealing with UI state)
-      await createMessage(threadId, updatedMessage)
-      triggerUpdate()
-
-      // Update UI messages (this array is managed by AI SDK, so replace edited version)
-      setMessages((messages) => {
-        const index = messages.findIndex((m) => m.id === message.id)
-
-        if (index !== -1) {
-          // Replace the old message with the updated one in the UI
-          return [...messages.slice(0, index), updatedMessage, ...messages.slice(index + 1)]
-        }
-        return messages // Should not happen for an existing message
-      })
-
-      // For message editing, we'll use a simplified approach and not call title generation
-      // since editing typically doesn't warrant new title generation
-      
-      setMode("view")
       stop() // Stop any ongoing streaming if user edits
 
+      // Delete all messages from this point forward (inclusive)
+      await deleteTrailingMessages({
+        threadId: convexThreadId,
+        fromCreatedAt: message.createdAt.getTime(),
+        inclusive: true,
+      })
+
+      // Create the new edited message in Convex
+      await createMessage({
+        threadId: convexThreadId,
+        content: draftContent,
+        role: "user",
+        parts: [{ type: "text", text: draftContent }],
+      })
+
+      // Update UI messages (remove the edited message and all after it)
+      setMessages((messages) => {
+        const index = messages.findIndex((m) => m.id === message.id)
+        return index !== -1 ? messages.slice(0, index) : messages
+      })
+
+      setMode("view")
+      
       setTimeout(() => {
-        reload() // Reload chat to ensure consistency with DB (especially if messages were deleted)
+        reload() // Reload chat to ensure consistency with DB
       }, 0)
     } catch (error) {
       console.error("Failed to save message:", error)
