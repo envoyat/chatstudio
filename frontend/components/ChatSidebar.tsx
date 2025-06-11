@@ -21,6 +21,7 @@ import { Authenticated, Unauthenticated, useConvexAuth } from "convex/react"
 import { SignInButton, UserButton } from "@clerk/nextjs"
 import { useThreads, useDeleteThread } from "@/lib/convex-hooks"
 import { convertConvexThread } from "@/lib/convex-storage"
+import type { Id } from "@/convex/_generated/dataModel"
 
 export default function ChatSidebar() {
   const navigate = useNavigate()
@@ -42,14 +43,15 @@ export default function ChatSidebar() {
   const currentThreadId = location.pathname.includes("/chat/") ? location.pathname.split("/chat/")[1] : null
   const isCollapsed = state === "collapsed"
 
-  const handleDeleteThread = async (threadId: string, event: React.MouseEvent) => {
+  const handleDeleteThread = async (convexThreadId: Id<"threads">, event: React.MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
     
     if (isAuthenticated) {
       // Use Convex mutation for authenticated users
       try {
-        await deleteThreadMutation({ threadId: threadId as any })
+        // Pass the actual Convex ID
+        await deleteThreadMutation({ threadId: convexThreadId })
         navigate(`/chat`)
       } catch (error) {
         console.error('Failed to delete thread:', error)
@@ -91,7 +93,7 @@ export default function ChatSidebar() {
                             variant="ghost"
                             size="sm"
                             className="opacity-0 group-hover/thread:opacity-100 transition-opacity ml-2 h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                            onClick={(event) => handleDeleteThread(thread.id, event)}
+                            onClick={(event) => handleDeleteThread(thread._id, event)}
                           >
                             <X size={14} />
                           </Button>
