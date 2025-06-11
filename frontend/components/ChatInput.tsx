@@ -11,7 +11,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import useAutoResizeTextarea from "@/hooks/useAutoResizeTextArea"
 import type { UseChatHelpers } from "@ai-sdk/react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { useCreateMessage, useCreateThread } from "@/frontend/storage/convex-queries"
+import { createMessage, createThread } from "@/frontend/storage/queries"
+import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { AI_MODELS, type AIModel, getEffectiveModelConfig, isModelAvailable } from "@/lib/models"
@@ -20,7 +21,6 @@ import type { UIMessage } from "ai"
 import { v4 as uuidv4 } from "uuid"
 import { StopIcon } from "@/components/ui/icons"
 import { useMessageSummary } from "../hooks/useMessageSummary"
-import type { Id } from "../../convex/_generated/dataModel"
 
 interface ChatInputProps {
   threadId: string
@@ -50,8 +50,6 @@ const createUserMessage = (id: string, text: string): UIMessage => ({
 
 function PureChatInput({ threadId, input, status, setInput, append, stop }: ChatInputProps) {
   const canChat = useAPIKeyStore((state) => state.hasRequiredKeys())
-  const createThreadMutation = useCreateThread()
-  const createMessageMutation = useCreateMessage()
 
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 72,
@@ -77,31 +75,23 @@ function PureChatInput({ threadId, input, status, setInput, append, stop }: Chat
 
     if (isNewThread) {
       navigate(`/chat/${threadId}`)
-      const convexThreadId = await createThreadMutation({
-        id: threadId,
-        title: "New Chat",
-      })
+      await createThread(threadId)
+      triggerUpdate()
       complete(currentInput.trim(), {
-        body: { threadId: convexThreadId, messageId, isTitle: true },
+        body: { threadId, messageId, isTitle: true },
       })
     } else {
       complete(currentInput.trim(), { body: { messageId, threadId } })
     }
 
     const userMessage = createUserMessage(messageId, currentInput.trim())
-    await createMessageMutation({
-      threadId: threadId as Id<"threads">,
-      messageId: userMessage.id,
-      parts: userMessage.parts,
-      content: userMessage.content,
-      role: userMessage.role,
-      createdAt: userMessage.createdAt?.getTime() || Date.now(),
-    })
+    await createMessage(threadId, userMessage)
+    triggerUpdate()
 
     append(userMessage)
     setInput("")
     adjustHeight(true)
-  }, [input, status, setInput, adjustHeight, append, textareaRef, threadId, complete, navigate, location, createThreadMutation, createMessageMutation])
+  }, [input, status, setInput, adjustHeight, append, textareaRef, threadId, complete, navigate, location])
 
   if (!canChat) {
     return <KeyPrompt />

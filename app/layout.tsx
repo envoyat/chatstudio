@@ -5,7 +5,6 @@ import "./globals.css"
 import "katex/dist/katex.min.css"
 import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/ui/theme-provider"
-import { ConvexClientProvider } from "@/components/ConvexClientProvider"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -25,12 +24,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <ConvexClientProvider>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            {children}
-            <Toaster richColors position="top-right" />
-          </ThemeProvider>
-        </ConvexClientProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          {children}
+          <Toaster richColors position="top-right" />
+        </ThemeProvider>
       </body>
     </html>
   )
