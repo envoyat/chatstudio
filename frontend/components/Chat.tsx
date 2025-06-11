@@ -5,13 +5,14 @@ import Messages from "./Messages"
 import ChatInput from "./ChatInput"
 import type { UIMessage } from "ai"
 import { v4 as uuidv4 } from "uuid"
-import { createMessage } from "@/frontend/storage/queries"
-import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getEffectiveModelConfig } from "@/lib/models"
-import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { useCreateMessage, useCreateThread, useUpdateThread } from "@/lib/convex-hooks"
+import { memoryStorage } from "@/lib/convex-storage"
+import { useState, useCallback } from "react"
+import { useConvexAuth } from "convex/react"
 
 interface ChatProps {
   threadId: string
@@ -21,9 +22,64 @@ interface ChatProps {
 export default function Chat({ threadId, initialMessages }: ChatProps) {
   const { getKey, hasUserKey } = useAPIKeyStore()
   const selectedModel = useModelStore((state) => state.selectedModel)
+  const [convexThreadId, setConvexThreadId] = useState<string | null>(null)
+  const { isAuthenticated } = useConvexAuth()
+  
+  // Convex mutations
+  const createMessage = useCreateMessage()
+  const createThread = useCreateThread()
+  const updateThread = useUpdateThread()
   
   // Compute effective model config directly in component to avoid infinite loop
   const modelConfig = getEffectiveModelConfig(selectedModel, getKey, hasUserKey)
+
+  const saveMessage = useCallback(async (message: UIMessage) => {
+    if (isAuthenticated) {
+      // Save to Convex for authenticated users
+      let threadIdToUse = convexThreadId
+
+      // Create thread if it doesn't exist and this is the first user message
+      if (!threadIdToUse && message.role === "user") {
+        try {
+          threadIdToUse = await createThread({ title: message.content.slice(0, 50) + "..." })
+          setConvexThreadId(threadIdToUse)
+        } catch (error) {
+          console.error("Failed to create thread:", error)
+          return
+        }
+      }
+
+      if (threadIdToUse) {
+        try {
+          await createMessage({
+            threadId: threadIdToUse as any,
+            content: message.content,
+            role: message.role,
+            parts: message.parts,
+          })
+
+          // Update thread's last message time
+          await updateThread({
+            threadId: threadIdToUse as any,
+            lastMessageAt: Date.now(),
+          })
+        } catch (error) {
+          console.error("Failed to save message:", error)
+        }
+      }
+    } else {
+      // For unauthenticated users, save to memory storage
+      memoryStorage.addMessage({
+        _id: message.id as any,
+        id: message.id,
+        threadId,
+        content: message.content,
+        role: message.role,
+        parts: message.parts,
+        createdAt: message.createdAt || new Date(),
+      })
+    }
+  }, [isAuthenticated, convexThreadId, createMessage, createThread, updateThread, threadId])
 
   const { messages, input, status, setInput, setMessages, append, stop, reload, error } = useChat({
     id: threadId,
@@ -38,12 +94,7 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
         createdAt: new Date(),
       }
 
-      try {
-        await createMessage(threadId, aiMessage)
-        triggerUpdate()
-      } catch (error) {
-        console.error(error)
-      }
+      await saveMessage(aiMessage)
     },
     headers: {
       // Only send user's API key if they have one, let server handle host key fallback
@@ -53,6 +104,8 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
       model: selectedModel,
     },
   })
+
+  // Pass the saveMessage function to ChatInput instead
 
   return (
     <div className="relative w-full h-screen flex flex-col">

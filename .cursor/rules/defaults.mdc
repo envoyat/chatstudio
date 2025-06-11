@@ -11,3 +11,4 @@ bunx convex dev
 ```
 
 Please do not try to edit or modify local .env files. Just tell me what to add or remove from them
+You should have access to a Convex MCP server, please try it

@@ -1,0 +1,124 @@
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+
+export const create = mutation({
+  args: {
+    threadId: v.id("threads"),
+    content: v.string(),
+    role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data")),
+    parts: v.optional(v.any()),
+  },
+  returns: v.id("messages"),
+  handler: async (ctx, args) => {
+    // For messages, we don't require authentication since users can chat without logging in
+    // But if they are authenticated, we should verify they own the thread
+    const identity = await ctx.auth.getUserIdentity();
+    
+    if (identity) {
+      const thread = await ctx.db.get(args.threadId);
+      if (!thread) {
+        throw new Error("Thread not found");
+      }
+      if (thread.userId !== identity.subject) {
+        throw new Error("Not authorized to add messages to this thread");
+      }
+    }
+
+    const messageId = await ctx.db.insert("messages", {
+      threadId: args.threadId,
+      content: args.content,
+      role: args.role,
+      parts: args.parts,
+      createdAt: Date.now(),
+    });
+
+    // Update thread's lastMessageAt
+    if (identity) {
+      await ctx.db.patch(args.threadId, {
+        lastMessageAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    return messageId;
+  },
+});
+
+export const list = query({
+  args: {
+    threadId: v.id("threads"),
+  },
+  returns: v.array(v.object({
+    _id: v.id("messages"),
+    _creationTime: v.number(),
+    threadId: v.id("threads"),
+    content: v.string(),
+    role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data")),
+    parts: v.optional(v.any()),
+    createdAt: v.number(),
+  })),
+  handler: async (ctx, args) => {
+    // For listing messages, we allow unauthenticated access for temporary threads
+    const identity = await ctx.auth.getUserIdentity();
+    
+    if (identity) {
+      const thread = await ctx.db.get(args.threadId);
+      if (!thread || thread.userId !== identity.subject) {
+        return [];
+      }
+    }
+
+    return await ctx.db
+      .query("messages")
+      .withIndex("by_thread_and_created", (q) => q.eq("threadId", args.threadId))
+      .order("asc")
+      .collect();
+  },
+});
+
+export const deleteTrailing = mutation({
+  args: {
+    threadId: v.id("threads"),
+    fromCreatedAt: v.number(),
+    inclusive: v.optional(v.boolean()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Must be authenticated to delete messages");
+    }
+
+    const thread = await ctx.db.get(args.threadId);
+    if (!thread || thread.userId !== identity.subject) {
+      throw new Error("Not authorized to delete messages from this thread");
+    }
+
+    const inclusive = args.inclusive ?? true;
+    
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_thread_and_created", (q) => q.eq("threadId", args.threadId))
+      .collect();
+
+    const messagesToDelete = messages.filter(msg => 
+      inclusive ? msg.createdAt >= args.fromCreatedAt : msg.createdAt > args.fromCreatedAt
+    );
+
+    for (const message of messagesToDelete) {
+      await ctx.db.delete(message._id);
+      
+      // Also delete related summaries
+      const summaries = await ctx.db
+        .query("messageSummaries")
+        .withIndex("by_message", (q) => q.eq("messageId", message._id))
+        .collect();
+      
+      for (const summary of summaries) {
+        await ctx.db.delete(summary._id);
+      }
+    }
+
+    return null;
+  },
+}); 

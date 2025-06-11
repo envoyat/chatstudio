@@ -6,11 +6,13 @@ import { v4 as uuidv4 } from "uuid"
 import { useAPIKeyStore } from "../stores/APIKeyStore"
 import { useModelStore } from "../stores/ModelStore"
 import { useEffect, useState } from "react"
+import { useConvexAuth } from "convex/react"
 
 export default function Home() {
   const [isHydrated, setIsHydrated] = useState(false)
   const [threadId] = useState(() => uuidv4())
   const hasRequiredKeys = useAPIKeyStore((state) => state.hasRequiredKeys())
+  const { isAuthenticated } = useConvexAuth()
 
   useEffect(() => {
     // Wait for stores to hydrate
@@ -52,5 +54,7 @@ export default function Home() {
     )
   }
 
+  // For authenticated users, threadId will be managed by Convex when messages are saved
+  // For unauthenticated users, use the UUID for the session only
   return <Chat threadId={threadId} initialMessages={[]} />
 }
