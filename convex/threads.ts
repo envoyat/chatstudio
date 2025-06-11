@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 
 export const create = mutation({
   args: {
@@ -170,6 +170,29 @@ export const remove = mutation({
 
     // Delete the thread
     await ctx.db.delete(args.threadId);
+    return null;
+  },
+});
+
+// New: Internal mutation to update thread title, callable by actions
+export const internalUpdateTitle = internalMutation({
+  args: {
+    threadId: v.id("threads"),
+    title: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // No explicit authentication check here, as it's an internal mutation
+    // Assumed to be called by an authenticated action.
+    const thread = await ctx.db.get(args.threadId);
+    if (!thread) {
+      throw new Error("Thread not found");
+    }
+
+    await ctx.db.patch(args.threadId, {
+      title: args.title,
+      updatedAt: Date.now(),
+    });
     return null;
   },
 });

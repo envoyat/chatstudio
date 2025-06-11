@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { toast } from "sonner"
+import { useAction } from "convex/react"
+import { api } from "@/convex/_generated/api"
 
 export default function MessageEditor({
   threadId,
@@ -33,28 +35,7 @@ export default function MessageEditor({
   const getKey = useAPIKeyStore((state) => state.getKey)
   const hasUserKey = useAPIKeyStore((state) => state.hasUserKey)
 
-  const { complete } = useCompletion({
-    api: "/api/completion",
-    // Only send user's Google API key if they have one, let server handle host key fallback
-    ...(hasUserKey("google") && {
-      headers: { "X-Google-API-Key": getKey("google")! },
-    }),
-    onResponse: async (response) => {
-      try {
-        const payload = await response.json()
-
-        if (response.ok) {
-          const { title, messageId, threadId } = payload
-          await createMessageSummary(threadId, messageId, title)
-          triggerUpdate()
-        } else {
-          toast.error(payload.error || "Failed to generate a summary for the message")
-        }
-      } catch (error) {
-        console.error(error)
-      }
-    },
-  })
+  const generateTitleAction = useAction(api.ai.generateTitle)
 
   const handleSave = async () => {
     try {
@@ -86,15 +67,16 @@ export default function MessageEditor({
         return messages
       })
 
-      complete(draftContent, {
-        body: {
-          messageId: updatedMessage.id,
-          threadId,
-        },
+      const userGoogleApiKey = hasUserKey("google") ? getKey("google") : undefined
+      await generateTitleAction({
+        prompt: draftContent,
+        messageId: updatedMessage.id as any,
+        threadId: threadId as any,
+        userGoogleApiKey,
       })
+
       setMode("view")
 
-      // stop the current stream if any
       stop()
 
       setTimeout(() => {

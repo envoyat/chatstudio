@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 
 export const create = mutation({
   args: {
@@ -120,5 +120,26 @@ export const deleteTrailing = mutation({
     }
 
     return null;
+  },
+});
+
+// New: Internal mutation to create a message summary, callable by actions
+export const internalCreateSummary = internalMutation({
+  args: {
+    threadId: v.id("threads"),
+    messageId: v.id("messages"),
+    content: v.string(),
+  },
+  returns: v.id("messageSummaries"),
+  handler: async (ctx, args) => {
+    // No explicit authentication check here, as it's an internal mutation
+    // Assumed to be called by an authenticated action.
+    const summaryId = await ctx.db.insert("messageSummaries", {
+      threadId: args.threadId,
+      messageId: args.messageId,
+      content: args.content,
+      createdAt: Date.now(),
+    });
+    return summaryId;
   },
 }); 

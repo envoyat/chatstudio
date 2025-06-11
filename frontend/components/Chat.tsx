@@ -13,6 +13,7 @@ import { useCreateMessage, useCreateThread, useUpdateThread, useThreadByUuid } f
 import { memoryStorage } from "@/lib/convex-storage"
 import { useState, useCallback, useEffect } from "react"
 import { useConvexAuth } from "convex/react"
+import { getConvexHttpUrl } from "@/lib/utils"
 
 interface ChatProps {
   threadId: string
@@ -38,12 +39,13 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
     }
   }, [existingThread])
   
-  // Compute effective model config directly in component to avoid infinite loop
-  const modelConfig = getEffectiveModelConfig(selectedModel, getKey, hasUserKey)
+  // Determine if a user key is available for the selected model's provider
+  // This will be passed to the Convex HTTP action.
+  const modelConfig = getEffectiveModelConfig(selectedModel, getKey, hasUserKey);
+  const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined;
 
   const saveMessage = useCallback(async (message: UIMessage) => {
     if (isAuthenticated) {
-      // Save to Convex for authenticated users
       let threadIdToUse = convexThreadId
 
       // Create thread if it doesn't exist and this is the first user message
@@ -69,7 +71,7 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
             parts: message.parts,
           })
 
-          // Update thread's last message time
+          // Update thread's lastMessageAt
           await updateThread({
             threadId: threadIdToUse as any,
             lastMessageAt: Date.now(),
@@ -81,7 +83,7 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
     } else {
       // For unauthenticated users, save to memory storage
       memoryStorage.addMessage({
-        _id: message.id as any,
+        _id: message.id as any, // Not a real Convex ID, but for compatibility
         id: message.id,
         threadId,
         content: message.content,
@@ -93,6 +95,8 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
   }, [isAuthenticated, convexThreadId, createMessage, createThread, updateThread, threadId])
 
   const { messages, input, status, setInput, setMessages, append, stop, reload, error } = useChat({
+    // Point the AI SDK to your new Convex HTTP Action endpoint
+    api: getConvexHttpUrl("/api/chat"),
     id: threadId,
     initialMessages,
     experimental_throttle: 50,
@@ -107,16 +111,13 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
 
       await saveMessage(aiMessage)
     },
-    headers: {
-      // Only send user's API key if they have one, let server handle host key fallback
-      ...(hasUserKey(modelConfig.provider) ? { [modelConfig.headerKey]: getKey(modelConfig.provider) || "" } : {}),
-    },
+    // Pass model and userApiKey directly in the body for the Convex action to use
     body: {
       model: selectedModel,
+      userApiKey: userApiKeyForModel, // Pass the user's API key if available
     },
+    // No need for custom headers for API keys here, as it's now in the body
   })
-
-  // Pass the saveMessage function to ChatInput instead
 
   return (
     <div className="relative w-full h-screen flex flex-col">

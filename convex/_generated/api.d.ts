@@ -13,7 +13,10 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as ai from "../ai.js";
+import type * as http from "../http.js";
 import type * as messages from "../messages.js";
+import type * as models from "../models.js";
 import type * as threads from "../threads.js";
 
 /**
@@ -25,7 +28,10 @@ import type * as threads from "../threads.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  ai: typeof ai;
+  http: typeof http;
   messages: typeof messages;
+  models: typeof models;
   threads: typeof threads;
 }>;
 export declare const api: FilterApi<
