@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { auth } from "./auth";
+import { getCurrentUserQuery, getCurrentUserMutation } from "./lib/auth";
 
 // Get message summaries for a thread
 export const getMessageSummaries = query({
@@ -16,7 +16,7 @@ export const getMessageSummaries = query({
     createdAt: v.number(),
   })),
   handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
+    const user = await getCurrentUserQuery(ctx);
     
     // Get the thread to check ownership
     const thread = await ctx.db.get(args.threadId);
@@ -25,7 +25,7 @@ export const getMessageSummaries = query({
     }
     
     // Allow access if user owns the thread or it's anonymous
-    if (thread.userId !== userId && thread.userId !== undefined) {
+    if (thread.userId !== user?._id && thread.userId !== undefined) {
       throw new Error("Unauthorized");
     }
     
@@ -46,7 +46,7 @@ export const createMessageSummary = mutation({
   },
   returns: v.id("messageSummaries"),
   handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
+    const user = await getCurrentUserMutation(ctx);
     
     // Get the thread to check ownership
     const thread = await ctx.db.get(args.threadId);
@@ -55,7 +55,7 @@ export const createMessageSummary = mutation({
     }
     
     // Allow creation if user owns the thread or it's anonymous
-    if (thread.userId !== userId && thread.userId !== undefined) {
+    if (thread.userId !== user?._id && thread.userId !== undefined) {
       throw new Error("Unauthorized");
     }
     
@@ -68,7 +68,7 @@ export const createMessageSummary = mutation({
     return await ctx.db.insert("messageSummaries", {
       threadId: args.threadId,
       messageId: args.messageId,
-      userId: userId || undefined,
+      userId: user?._id || undefined,
       content: args.content,
       createdAt: Date.now(),
     });

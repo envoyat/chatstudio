@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { auth } from "./auth";
+import { getCurrentUserQuery, getCurrentUserMutation } from "./lib/auth";
 
 // Get all messages for a thread
 export const getMessagesByThreadId = query({
@@ -17,7 +17,7 @@ export const getMessagesByThreadId = query({
     createdAt: v.number(),
   })),
   handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
+    const user = await getCurrentUserQuery(ctx);
     
     // Get the thread to check ownership
     const thread = await ctx.db.get(args.threadId);
@@ -26,7 +26,7 @@ export const getMessagesByThreadId = query({
     }
     
     // Allow access if user owns the thread or it's anonymous
-    if (thread.userId !== userId && thread.userId !== undefined) {
+    if (thread.userId !== user?._id && thread.userId !== undefined) {
       throw new Error("Unauthorized");
     }
     
@@ -50,7 +50,7 @@ export const createMessage = mutation({
   },
   returns: v.id("messages"),
   handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
+    const user = await getCurrentUserMutation(ctx);
     
     // Get the thread to check ownership and update lastMessageAt
     const thread = await ctx.db.get(args.threadId);
@@ -59,7 +59,7 @@ export const createMessage = mutation({
     }
     
     // Allow creation if user owns the thread or it's anonymous
-    if (thread.userId !== userId && thread.userId !== undefined) {
+    if (thread.userId !== user?._id && thread.userId !== undefined) {
       throw new Error("Unauthorized");
     }
     
@@ -68,7 +68,7 @@ export const createMessage = mutation({
     // Create the message
     const messageId = await ctx.db.insert("messages", {
       threadId: args.threadId,
-      userId: userId || undefined,
+      userId: user?._id || undefined,
       parts: args.parts,
       content: args.content,
       role: args.role,
@@ -94,7 +94,7 @@ export const deleteTrailingMessages = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
+    const user = await getCurrentUserMutation(ctx);
     const gte = args.gte !== false; // default to true
     
     // Get the thread to check ownership
@@ -104,7 +104,7 @@ export const deleteTrailingMessages = mutation({
     }
     
     // Allow deletion if user owns the thread or it's anonymous
-    if (thread.userId !== userId && thread.userId !== undefined) {
+    if (thread.userId !== user?._id && thread.userId !== undefined) {
       throw new Error("Unauthorized");
     }
     

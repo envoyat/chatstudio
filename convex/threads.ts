@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { auth } from "./auth";
+import { getCurrentUserQuery, getCurrentUserMutation } from "./lib/auth";
 
 // Get all threads for the current user (or all if anonymous)
 export const getThreads = query({
@@ -14,13 +14,13 @@ export const getThreads = query({
     lastMessageAt: v.number(),
   })),
   handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
+    const user = await getCurrentUserQuery(ctx);
     
-    if (userId) {
+    if (user) {
       // Return threads for authenticated user
       return await ctx.db
         .query("threads")
-        .withIndex("by_user_and_lastMessage", (q) => q.eq("userId", userId))
+        .withIndex("by_user_and_lastMessage", (q) => q.eq("userId", user._id))
         .order("desc")
         .collect();
     } else {
@@ -38,13 +38,13 @@ export const createThread = mutation({
   },
   returns: v.id("threads"),
   handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
+    const user = await getCurrentUserMutation(ctx);
     
     const now = Date.now();
     
     return await ctx.db.insert("threads", {
       title: args.title || "New Chat",
-      userId: userId || undefined,
+      userId: user?._id || undefined,
       createdAt: now,
       updatedAt: now,
       lastMessageAt: now,
@@ -60,7 +60,7 @@ export const updateThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
+    const user = await getCurrentUserMutation(ctx);
     
     const thread = await ctx.db.get(args.threadId);
     if (!thread) {
@@ -68,7 +68,7 @@ export const updateThread = mutation({
     }
     
     // Check if user owns this thread
-    if (thread.userId !== userId) {
+    if (thread.userId !== user?._id) {
       throw new Error("Unauthorized");
     }
     
@@ -92,7 +92,7 @@ export const deleteThread = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
+    const user = await getCurrentUserMutation(ctx);
     
     const thread = await ctx.db.get(args.threadId);
     if (!thread) {
@@ -100,7 +100,7 @@ export const deleteThread = mutation({
     }
     
     // Check if user owns this thread
-    if (thread.userId !== userId) {
+    if (thread.userId !== user?._id) {
       throw new Error("Unauthorized");
     }
     
@@ -135,16 +135,16 @@ export const deleteAllThreads = mutation({
   args: {},
   returns: v.null(),
   handler: async (ctx, args) => {
-    const userId = await auth.getUserId(ctx);
+    const user = await getCurrentUserMutation(ctx);
     
-    if (!userId) {
+    if (!user) {
       throw new Error("Must be authenticated to delete threads");
     }
     
     // Get all threads for this user
     const threads = await ctx.db
       .query("threads")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
     
     // Delete each thread (which will also delete messages and summaries)
