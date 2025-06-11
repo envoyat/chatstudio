@@ -13,8 +13,7 @@ import type { UseChatHelpers } from "@ai-sdk/react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
-import { AI_MODELS, type AIModel, getEffectiveModelConfig, isModelAvailable } from "@/lib/models"
-import KeyPrompt from "@/frontend/components/KeyPrompt"
+import { AI_MODELS, type AIModel, isModelAvailable } from "@/lib/models"
 import type { UIMessage } from "ai"
 import { v4 as uuidv4 } from "uuid"
 import { StopIcon } from "@/components/ui/icons"
@@ -54,8 +53,6 @@ const createUserMessage = (id: string, text: string): UIMessage => ({
 })
 
 function PureChatInput({ threadId, input, status, setInput, append, stop, convexThreadId, onConvexThreadIdChange }: ChatInputProps) {
-  const canChat = useAPIKeyStore((state) => state.hasRequiredKeys())
-
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 72,
     maxHeight: 200,
@@ -138,10 +135,6 @@ function PureChatInput({ threadId, input, status, setInput, append, stop, convex
       });
     }
   }, [input, isDisabled, setInput, adjustHeight, append, textareaRef, threadId, complete, navigate, location, isAuthenticated, convexThreadId, convexCreateThread, convexCreateMessage, onConvexThreadIdChange])
-
-  if (!canChat) {
-    return <KeyPrompt />
-  }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {

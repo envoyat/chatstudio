@@ -18,7 +18,7 @@ import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn } fr
 import { cn } from "@/lib/utils"
 import { memo } from "react"
 import { Authenticated, Unauthenticated, useConvexAuth } from "convex/react"
-import { SignInButton, UserButton } from "@clerk/nextjs"
+import { SignInButton, UserButton, useUser } from "@clerk/nextjs"
 import { useThreads, useDeleteThread } from "@/lib/convex-hooks"
 import { convertConvexThread } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -175,10 +175,18 @@ function PureHeader() {
 const Header = memo(PureHeader)
 
 const PureFooter = () => {
+  const navigate = useNavigate()
+  const { user } = useUser()
+
   return (
     <SidebarFooter className="border-t p-4 space-y-2">
       <Authenticated>
-        <div className="flex items-center justify-center">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-3 h-12 p-3 hover:bg-accent/50"
+          onClick={() => navigate("/settings")}
+        >
           <UserButton 
             appearance={{
               elements: {
@@ -186,22 +194,33 @@ const PureFooter = () => {
               }
             }}
           />
-        </div>
+          <div className="flex flex-col items-start min-w-0 flex-1">
+            <span className="text-sm font-medium truncate w-full">
+              {user?.fullName || user?.firstName || "User"}
+            </span>
+            <span className="text-xs text-muted-foreground truncate w-full">
+              {user?.primaryEmailAddress?.emailAddress}
+            </span>
+          </div>
+          <Settings size={16} className="text-muted-foreground" />
+        </Button>
       </Authenticated>
       
-      <Link 
-        to="/settings" 
-        className={cn(
-          buttonVariants({ 
-            variant: "outline",
-            size: "sm"
-          }),
-          "w-full justify-center gap-2 h-9"
-        )}
-      >
-        <Settings size={16} />
-        Settings
-      </Link>
+      <Unauthenticated>
+        <Link 
+          to="/settings" 
+          className={cn(
+            buttonVariants({ 
+              variant: "outline",
+              size: "sm"
+            }),
+            "w-full justify-center gap-2 h-9"
+          )}
+        >
+          <Settings size={16} />
+          Settings
+        </Link>
+      </Unauthenticated>
     </SidebarFooter>
   )
 }
