@@ -38,15 +38,26 @@ export const generateTitle = internalAction({
     title: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
+    // Try user's API key first, then fallback to host API key
     let googleApiKey = args.userGoogleApiKey;
+    let keySource = "user";
+    
     if (!googleApiKey) {
       googleApiKey = getApiKeyFromConvexEnv("google");
+      keySource = "host";
     }
 
     if (!googleApiKey) {
-      // Return an error if no Google API key is available
-      throw new Error("Google API key is required to enable chat title generation.");
+      // Provide a more specific error message
+      const errorMessage = args.userGoogleApiKey 
+        ? "Both user and host Google API keys are missing. Please set HOST_GOOGLE_API_KEY in Convex environment variables."
+        : "No Google API key available. Either provide a user API key or set HOST_GOOGLE_API_KEY in Convex environment variables.";
+      
+      console.error(`Title generation failed: ${errorMessage}`);
+      throw new Error(errorMessage);
     }
+
+    console.log(`Using ${keySource} Google API key for title generation`);
 
     const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
 
