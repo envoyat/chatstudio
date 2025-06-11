@@ -1,4 +1,4 @@
-import { useAction } from "convex/react"
+import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { toast } from "sonner"
@@ -15,7 +15,7 @@ export const useMessageSummary = () => {
   const getKey = useAPIKeyStore((state) => state.getKey)
   const hasUserKey = useAPIKeyStore((state) => state.hasUserKey)
 
-  const generateTitleAction = useAction(api.ai.generateTitle)
+  const generateTitleMutation = useMutation(api.messages.generateTitleForMessage)
 
   const complete = async (
     prompt: string,
@@ -36,9 +36,9 @@ export const useMessageSummary = () => {
     }
 
     try {
-      const userGoogleApiKey = hasUserKey("google") ? getKey("google") : undefined
+      const userGoogleApiKey = hasUserKey("google") ? getKey("google") || undefined : undefined
 
-      const result: MessageSummaryPayload = await generateTitleAction({
+      await generateTitleMutation({
         prompt,
         isTitle,
         messageId: messageId as any,
@@ -46,13 +46,8 @@ export const useMessageSummary = () => {
         userGoogleApiKey,
       })
 
-      if (result.success) {
-        if (!userGoogleApiKey && isTitle && result.title) {
-          await updateThread(threadId, result.title)
-          triggerUpdate()
-        }
-      } else {
-        toast.error(result.error || "Failed to generate a summary for the message")
+      if (!userGoogleApiKey && isTitle) {
+        triggerUpdate()
       }
     } catch (error: any) {
       console.error("Error generating title:", error)

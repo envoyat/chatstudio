@@ -2,7 +2,7 @@
 
 import { createMessage, deleteTrailingMessages, createMessageSummary } from "@/frontend/storage/queries"
 import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
-import { type UseChatHelpers, useCompletion } from "@ai-sdk/react"
+import { type UseChatHelpers } from "@ai-sdk/react"
 import { useState } from "react"
 import type { UIMessage } from "ai"
 import type { Dispatch, SetStateAction } from "react"
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { toast } from "sonner"
-import { useAction } from "convex/react"
+import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 
 export default function MessageEditor({
@@ -35,7 +35,7 @@ export default function MessageEditor({
   const getKey = useAPIKeyStore((state) => state.getKey)
   const hasUserKey = useAPIKeyStore((state) => state.hasUserKey)
 
-  const generateTitleAction = useAction(api.ai.generateTitle)
+  const generateTitleMutation = useMutation(api.messages.generateTitleForMessage)
 
   const handleSave = async () => {
     try {
@@ -67,8 +67,8 @@ export default function MessageEditor({
         return messages
       })
 
-      const userGoogleApiKey = hasUserKey("google") ? getKey("google") : undefined
-      await generateTitleAction({
+      const userGoogleApiKey = hasUserKey("google") ? getKey("google") || undefined : undefined
+      await generateTitleMutation({
         prompt: draftContent,
         messageId: updatedMessage.id as any,
         threadId: threadId as any,

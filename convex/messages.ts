@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api"; // Import 'internal' to schedule internal actions
 
 export const create = mutation({
   args: {
@@ -141,5 +142,36 @@ export const internalCreateSummary = internalMutation({
       createdAt: Date.now(),
     });
     return summaryId;
+  },
+});
+
+// New: Client-callable mutation to trigger title generation
+export const generateTitleForMessage = mutation({
+  args: {
+    prompt: v.string(),
+    isTitle: v.optional(v.boolean()),
+    messageId: v.id("messages"),
+    threadId: v.id("threads"),
+    userGoogleApiKey: v.optional(v.string()), // Pass user's key to the action
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    // The client calls this mutation.
+    // We then schedule the internal AI action to do the actual work.
+    // This allows the client call to complete quickly, and the AI work
+    // happens in the background, safely integrated with Convex's scheduler.
+    await ctx.scheduler.runAfter(
+      0, // Run immediately
+      internal.ai.generateTitle, // Reference the internal action
+      {
+        prompt: args.prompt,
+        isTitle: args.isTitle,
+        messageId: args.messageId,
+        threadId: args.threadId,
+        userGoogleApiKey: args.userGoogleApiKey,
+      },
+    );
+    // No direct return from this mutation is needed, as the action handles DB updates.
+    return null;
   },
 }); 
