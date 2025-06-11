@@ -21,7 +21,7 @@ export const create = mutation({
         throw new Error("Thread not found");
       }
       if (thread.userId !== identity.subject) {
-        throw new Error("Not authorized to add messages to this thread");
+        throw new Error("Not authorised to add messages to this thread");
       }
     }
 

@@ -1,39 +1,19 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-// No longer need to import `internal` here for `streamChat` as it's gone
-// import { internal } from "./_generated/api";
 
-// New imports for AI SDK in HTTP action
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { streamText } from "ai";
-import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models"; // Correct path to models for HTTP Action
-
-// Helper to get API key from Convex environment variables for host fallback
-const getApiKeyFromConvexEnv = (providerKey: string): string | undefined => {
-  switch (providerKey) {
-    case "google":
-      return process.env.HOST_GOOGLE_API_KEY;
-    case "anthropic":
-      return process.env.ANTHROPIC_API_KEY;
-    case "openai":
-      return process.env.OPENAI_API_KEY;
-    case "openrouter":
-      return process.env.OPENROUTER_API_KEY;
-    default:
-      return undefined;
-  }
-};
+import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
+import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
 
 const http = httpRouter();
 
-// Define the POST route for /api/chat
 http.route({
   path: "/api/chat",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    // Parse the request body, expecting model, messages, and userApiKey
     const { messages, model, userApiKey } = await request.json();
 
     try {

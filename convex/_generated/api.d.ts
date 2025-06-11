@@ -18,6 +18,7 @@ import type * as http from "../http.js";
 import type * as messages from "../messages.js";
 import type * as models from "../models.js";
 import type * as threads from "../threads.js";
+import type * as utils_apiKeys from "../utils/apiKeys.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   messages: typeof messages;
   models: typeof models;
   threads: typeof threads;
+  "utils/apiKeys": typeof utils_apiKeys;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

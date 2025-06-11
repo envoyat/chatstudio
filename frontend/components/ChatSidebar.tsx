@@ -22,6 +22,7 @@ import { SignInButton, UserButton, useUser } from "@clerk/nextjs"
 import { useThreads, useDeleteThread } from "@/lib/convex-hooks"
 import { convertConvexThread } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
+import { ROUTES } from "@/frontend/constants/routes"
 
 export default function ChatSidebar() {
   const navigate = useNavigate()
@@ -52,7 +53,7 @@ export default function ChatSidebar() {
       try {
         // Pass the actual Convex ID
         await deleteThreadMutation({ threadId: convexThreadId })
-        navigate(`/chat`)
+        navigate(ROUTES.CHAT)
       } catch (error) {
         console.error('Failed to delete thread:', error)
       }
@@ -85,7 +86,7 @@ export default function ChatSidebar() {
                             if (currentThreadId === thread.id) {
                               return
                             }
-                            navigate(`/chat/${thread.id}`)
+                            navigate(ROUTES.CHAT_THREAD(thread.id))
                           }}
                         >
                           <span className="truncate text-sm font-medium flex-1">{thread.title}</span>
@@ -156,7 +157,7 @@ function PureHeader() {
       </div>
       
       <Link
-        to="/chat"
+        to={ROUTES.CHAT}
         className={cn(
           buttonVariants({
             variant: "default",
@@ -185,7 +186,7 @@ const PureFooter = () => {
           variant="ghost"
           size="sm"
           className="w-full justify-start gap-3 h-12 p-3 hover:bg-accent/50"
-          onClick={() => navigate("/settings")}
+          onClick={() => navigate(ROUTES.SETTINGS)}
         >
           <UserButton 
             appearance={{
@@ -208,7 +209,7 @@ const PureFooter = () => {
       
       <Unauthenticated>
         <Link 
-          to="/settings" 
+          to={ROUTES.SETTINGS} 
           className={cn(
             buttonVariants({ 
               variant: "outline",
