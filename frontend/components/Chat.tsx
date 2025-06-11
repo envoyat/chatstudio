@@ -4,7 +4,6 @@ import { useChat } from "@ai-sdk/react"
 import Messages from "./Messages"
 import ChatInput from "./ChatInput"
 import type { UIMessage } from "ai"
-import { v4 as uuidv4 } from "uuid"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getEffectiveModelConfig } from "@/lib/models"
@@ -90,16 +89,18 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
     initialMessages,
     experimental_throttle: 50,
     onFinish: async ({ parts, content }) => {
-      // The AI SDK's `content` property might be partial during streaming.
-      // `parts` should contain the full content after `onFinish`.
-      const messageParts = parts || [];
+      // Prefer `parts` if provided (it contains tokenized segments from the AI SDK).
+      // If `parts` is missing, fall back to the `content` string supplied by the SDK.
+      const messageParts = parts ?? (content ? [{ type: "text", text: content }] : []);
+
+      // Re-assemble the full textual content from the parts array.
       const fullContent = messageParts
-        .filter(p => p.type === 'text')
-        .map(p => (p as { text: string }).text)
-        .join('');
-      
+        .filter((p) => p.type === "text")
+        .map((p) => (p as { text: string }).text)
+        .join("");
+
       if (fullContent.trim()) {
-        // Save the *final, complete* AI message content to Convex
+        // Persist the complete AI message to Convex.
         await saveAIMessageToConvex(fullContent, messageParts);
       }
     },

@@ -4,11 +4,7 @@ import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api"; // Import internal API for scheduling mutations
 import { v } from "convex/values";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { streamText, generateText } from "ai";
-import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
-import type { Message } from "ai";
+import { generateText } from "ai";
 
 // Helper to get API key from Convex environment variables.
 // These environment variables must be set in your Convex dashboard or via `npx convex env set`.

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
-import { internal } from "./_generated/api"; // Import 'internal' to schedule internal actions
+import { internal } from "./_generated/api";
 
 export const create = mutation({
   args: {
