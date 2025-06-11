@@ -11,8 +11,11 @@ export function ConvexClientProvider({ children }: { children: React.ReactNode }
     <ClerkProvider
       publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY!}
       appearance={{
-        signIn: { elements: { socialButtonsBlockButton: "hidden" } },
-        signUp: { elements: { socialButtonsBlockButton: "hidden" } },
+        elements: {
+          formButtonPrimary: "bg-slate-400 hover:bg-slate-500 ",
+          socialButtonsBlockButton: "bg-slate-400 hover:bg-slate-500 h-12",
+          formFieldInput: "border-input",
+        },
       }}
     >
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
