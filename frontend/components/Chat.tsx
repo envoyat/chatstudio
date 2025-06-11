@@ -14,30 +14,42 @@ import { memoryStorage } from "@/lib/convex-storage"
 import { useState, useCallback, useEffect } from "react"
 import { useConvexAuth } from "convex/react"
 import { getConvexHttpUrl } from "@/lib/utils"
+import type { Id } from "@/convex/_generated/dataModel"; // Import Convex Id type
 
 interface ChatProps {
-  threadId: string
+  threadId: string // This is the UUID from the URL, used for client-side routing/storage
   initialMessages: UIMessage[]
 }
 
-export default function Chat({ threadId, initialMessages }: ChatProps) {
+export default function Chat({ threadId: initialThreadUuid, initialMessages }: ChatProps) {
   const { getKey, hasUserKey } = useAPIKeyStore()
   const selectedModel = useModelStore((state) => state.selectedModel)
-  const [convexThreadId, setConvexThreadId] = useState<string | null>(null)
+  
+  // currentConvexThreadId will store the actual Convex `_id` once resolved
+  const [currentConvexThreadId, setCurrentConvexThreadId] = useState<Id<"threads"> | null>(null);
   const { isAuthenticated } = useConvexAuth()
   
   // Convex queries and mutations
-  const existingThread = useThreadByUuid(isAuthenticated ? threadId : undefined)
-  const createMessage = useCreateMessage()
-  const createThread = useCreateThread()
-  const updateThread = useUpdateThread()
+  // Use `initialThreadUuid` (from URL) to find existing thread in Convex
+  const existingThread = useThreadByUuid(isAuthenticated ? initialThreadUuid : undefined);
+  const createMessageMutation = useCreateMessage();
+  const createThreadMutation = useCreateThread();
+  const updateThreadMutation = useUpdateThread();
   
-  // Set convexThreadId if thread exists
+  // Resolve currentConvexThreadId from existingThread, or null if new/unauthenticated
   useEffect(() => {
-    if (existingThread) {
-      setConvexThreadId(existingThread._id)
+    if (isAuthenticated) {
+      if (existingThread) {
+        setCurrentConvexThreadId(existingThread._id);
+      } else {
+        // If authenticated but no existing thread for this UUID, it's a new authenticated chat
+        setCurrentConvexThreadId(null); 
+      }
+    } else {
+      // Unauthenticated, no Convex _id
+      setCurrentConvexThreadId(null);
     }
-  }, [existingThread])
+  }, [isAuthenticated, existingThread, initialThreadUuid]);
   
   // Determine if a user key is available for the selected model's provider
   // This will be passed to the Convex HTTP action.
@@ -45,86 +57,97 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
   const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined;
 
   const saveMessage = useCallback(async (message: UIMessage) => {
-    if (isAuthenticated) {
-      let threadIdToUse = convexThreadId
+    let messageDbId: string | Id<"messages"> | undefined; // To store the ID (Convex _id or local UUID)
+    let threadDbId: Id<"threads"> | string | undefined; // To store the effective thread ID for DB
 
-      // Create thread if it doesn't exist and this is the first user message
-      if (!threadIdToUse && message.role === "user") {
+    if (isAuthenticated) {
+      // For authenticated users, ensure we have a Convex thread ID
+      if (!currentConvexThreadId && message.role === "user") {
+        // This is the first user message in a new authenticated thread.
+        // Create the Convex thread and capture its `_id`.
         try {
-          threadIdToUse = await createThread({ 
+          const newConvexThreadId = await createThreadMutation({
             title: message.content.slice(0, 50) + "...",
-            uuid: threadId // Use the threadId from the URL as the UUID
-          })
-          setConvexThreadId(threadIdToUse)
+            uuid: initialThreadUuid, // Use the client-generated UUID as the Convex thread's UUID
+          });
+          setCurrentConvexThreadId(newConvexThreadId); // Update state to reflect the new Convex ID
+          threadDbId = newConvexThreadId;
         } catch (error) {
-          console.error("Failed to create thread:", error)
-          return
+          console.error("Failed to create Convex thread:", error);
+          return; // Stop if thread creation fails
         }
+      } else if (currentConvexThreadId) {
+        // If we already have a Convex thread ID, use it.
+        threadDbId = currentConvexThreadId;
+      } else {
+        // This case should ideally not happen if state is correctly managed.
+        console.error("Authenticated: Cannot determine thread ID for message save.");
+        return;
       }
 
-      if (threadIdToUse) {
-        try {
-          await createMessage({
-            threadId: threadIdToUse as any,
-            content: message.content,
-            role: message.role,
-            parts: message.parts,
-          })
+      try {
+        messageDbId = await createMessageMutation({
+          threadId: threadDbId as Id<"threads">, // Ensure it's a Convex Id
+          content: message.content,
+          role: message.role,
+          parts: message.parts,
+        });
 
-          // Update thread's lastMessageAt
-          await updateThread({
-            threadId: threadIdToUse as any,
-            lastMessageAt: Date.now(),
-          })
-        } catch (error) {
-          console.error("Failed to save message:", error)
-        }
+        await updateThreadMutation({
+          threadId: threadDbId as Id<"threads">, // Ensure it's a Convex Id
+          lastMessageAt: Date.now(),
+        });
+      } catch (error) {
+        console.error("Failed to save message to Convex:", error);
       }
     } else {
-      // For unauthenticated users, save to memory storage
+      // Unauthenticated: use local storage
+      threadDbId = initialThreadUuid; // Local storage uses the UUID directly
+      // `ChatInput` will handle local thread creation if `isNewThreadRoute` is true.
       memoryStorage.addMessage({
-        _id: message.id as any, // Not a real Convex ID, but for compatibility
-        id: message.id,
-        threadId,
+        _id: message.id as any, // Not a real Convex ID, but for compatibility with local storage
+        id: message.id, // Use the AI SDK UIMessage ID as local ID
+        threadId: initialThreadUuid, // Use the UUID
         content: message.content,
         role: message.role,
         parts: message.parts,
         createdAt: message.createdAt || new Date(),
-      })
+      });
+      messageDbId = message.id; // For local storage, messageDbId is the UUID
     }
-  }, [isAuthenticated, convexThreadId, createMessage, createThread, updateThread, threadId])
+    return messageDbId; // Return the created message ID (Convex or UUID)
+  }, [isAuthenticated, currentConvexThreadId, createMessageMutation, createThreadMutation, updateThreadMutation, initialThreadUuid]);
 
   const { messages, input, status, setInput, setMessages, append, stop, reload, error } = useChat({
-    // Point the AI SDK to your new Convex HTTP Action endpoint
-    api: getConvexHttpUrl("/api/chat"),
-    id: threadId,
+    api: getConvexHttpUrl("/api/chat"), // Point AI SDK to Convex HTTP action
+    id: initialThreadUuid, // The ID passed to useChat is the `id` for AI SDK internal caching
     initialMessages,
     experimental_throttle: 50,
     onFinish: async ({ parts }) => {
       const aiMessage: UIMessage = {
-        id: uuidv4(),
+        id: uuidv4(), // AI SDK client-side ID for this message
         parts: parts as UIMessage["parts"],
         role: "assistant",
         content: "",
         createdAt: new Date(),
-      }
-
-      await saveMessage(aiMessage)
+      };
+      // Save the AI message, and get its DB ID (Convex _id or local UUID).
+      // We don't directly use this returned ID here, but it's important that `saveMessage`
+      // correctly creates the DB entry.
+      await saveMessage(aiMessage);
     },
-    // Pass model and userApiKey directly in the body for the Convex action to use
     body: {
       model: selectedModel,
       userApiKey: userApiKeyForModel, // Pass the user's API key if available
     },
-    // No need for custom headers for API keys here, as it's now in the body
-  })
+  });
 
   return (
     <div className="relative w-full h-screen flex flex-col">
       <main className="flex-1 overflow-y-auto">
         <div className="w-full max-w-3xl pt-10 pb-44 mx-auto px-4">
           <Messages
-            threadId={threadId}
+            threadId={initialThreadUuid} // Still use the UUID for Messages component
             messages={messages}
             status={status}
             setMessages={setMessages}
@@ -136,7 +159,16 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
       </main>
       <div className="absolute bottom-0 left-0 right-11">
         <div className="w-full max-w-3xl mx-auto px-4 pb-4">
-          <ChatInput threadId={threadId} input={input} status={status} append={append} setInput={setInput} stop={stop} />
+          <ChatInput
+            threadId={initialThreadUuid} // Still pass the UUID from URL for local routing/storage
+            input={input}
+            status={status}
+            append={append}
+            setInput={setInput}
+            stop={stop}
+            // Pass the Convex thread ID if available for authenticated flows
+            convexThreadId={currentConvexThreadId}
+          />
         </div>
       </div>
       

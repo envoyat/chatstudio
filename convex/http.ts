@@ -1,6 +1,30 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { internal } from "./_generated/api"; // Import the generated API to call internal actions
+// No longer need to import `internal` here for `streamChat` as it's gone
+// import { internal } from "./_generated/api";
+
+// New imports for AI SDK in HTTP action
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { streamText } from "ai";
+import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models"; // Correct path to models for HTTP Action
+
+// Helper to get API key from Convex environment variables for host fallback
+const getApiKeyFromConvexEnv = (providerKey: string): string | undefined => {
+  switch (providerKey) {
+    case "google":
+      return process.env.HOST_GOOGLE_API_KEY;
+    case "anthropic":
+      return process.env.ANTHROPIC_API_KEY;
+    case "openai":
+      return process.env.OPENAI_API_KEY;
+    case "openrouter":
+      return process.env.OPENROUTER_API_KEY;
+    default:
+      return undefined;
+  }
+};
 
 const http = httpRouter();
 
@@ -13,31 +37,82 @@ http.route({
     const { messages, model, userApiKey } = await request.json();
 
     try {
-      // Call the internal AI action to stream the chat response.
-      // `ctx.runAction` streams the response directly.
-      const responseStream = await ctx.runAction(internal.ai.streamChat, {
-        messages,
-        model,
-        userApiKey, // Pass user's API key to the action
+      const aiModelName = model as AIModel;
+      const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName];
+
+      let apiKey = userApiKey; // User's key passed from client
+
+      // If no user key, try to use host key from Convex environment variables
+      if (!apiKey) {
+        apiKey = getApiKeyFromConvexEnv(modelConfig.provider);
+      }
+
+      if (!apiKey) {
+        return new Response(JSON.stringify({ 
+          error: `API key is required for ${modelConfig.provider}. Please add your API key in settings or ensure a host key is configured.` 
+        }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      let aiClientModel;
+      switch (modelConfig.provider) {
+        case "google":
+          const google = createGoogleGenerativeAI({ apiKey });
+          aiClientModel = google(modelConfig.modelId);
+          break;
+        case "openai":
+          const openai = createOpenAI({ apiKey });
+          aiClientModel = openai(modelConfig.modelId);
+          break;
+        case "openrouter":
+          const openrouter = createOpenRouter({ apiKey });
+          aiClientModel = openrouter(modelConfig.modelId);
+          break;
+        default:
+          return new Response(JSON.stringify({ error: "Unsupported model provider" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+      }
+
+      const result = await streamText({
+        model: aiClientModel,
+        messages: messages, // Messages from the request body
+        system: `
+          You are Chat Studio, a knowledgeable AI companion designed to assist users with various questions and tasks.
+          
+          Your core principles:
+          - Provide accurate, helpful responses tailored to each user's needs
+          - Maintain a friendly, professional demeanor throughout conversations
+          - Foster engaging dialogue while staying focused on being useful
+          
+          Mathematical Expression Guidelines:
+          When working with mathematical content, format expressions using LaTeX notation:
+          
+          For inline mathematics: Use single dollar signs to wrap expressions like $x^2 + y^2 = z^2$
+          For block-level mathematics: Use double dollar signs and place on separate lines
+          
+          Keep math formatting consistent - avoid mixing different delimiter styles within the same response.
+          
+          Mathematical formatting examples:
+          • Inline usage: "The formula $a^2 + b^2 = c^2$ represents the Pythagorean theorem"
+          • Block format:
+          $$\\int_{0}^{\\infty} e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
+        `,
       });
 
-      // Set CORS and streaming headers for the response
-      const headers = new Headers();
-      headers.set("Access-Control-Allow-Origin", process.env.CLIENT_ORIGIN || "*");
-      headers.set("Vary", "Origin");
-      headers.set("Content-Type", "text/event-stream"); // Essential for streaming text
-      headers.set("Cache-Control", "no-cache");
-      headers.set("Connection", "keep-alive");
-
-      // Return a standard Response object with the stream body
-      return new Response(responseStream.body, {
-        status: 200,
-        headers: headers,
+      // Respond with the stream, adding CORS headers
+      return result.toDataStreamResponse({
+        headers: {
+          "Access-Control-Allow-Origin": process.env.CLIENT_ORIGIN || "*",
+          "Vary": "Origin",
+        },
       });
 
     } catch (error: any) {
       console.error("HTTP chat action error:", error);
-      // Return a JSON error response with appropriate CORS headers
       return new Response(JSON.stringify({ error: error.message || "Internal Server Error" }), {
         status: 500,
         headers: new Headers({
@@ -55,25 +130,21 @@ http.route({
   path: "/api/chat",
   method: "OPTIONS",
   handler: httpAction(async (_, request) => {
-    // Check if the necessary headers for a pre-flight request are present
     const headers = request.headers;
     if (
       headers.get("Origin") !== null &&
       headers.get("Access-Control-Request-Method") !== null &&
       headers.get("Access-Control-Request-Headers") !== null
     ) {
-      // Respond with CORS headers allowing the actual request
       return new Response(null, {
         headers: new Headers({
           "Access-Control-Allow-Origin": process.env.CLIENT_ORIGIN || "*",
           "Access-Control-Allow-Methods": "POST",
-          // Allow custom API key headers for various providers
           "Access-Control-Allow-Headers": "Content-Type, X-Google-API-Key, X-Anthropic-API-Key, X-OpenAI-API-Key, X-OpenRouter-API-Key",
-          "Access-Control-Max-Age": "86400", // Cache pre-flight response for 24 hours
+          "Access-Control-Max-Age": "86400",
         }),
       });
     } else {
-      // If not a valid pre-flight, return an empty response
       return new Response();
     }
   }),

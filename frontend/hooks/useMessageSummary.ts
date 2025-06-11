@@ -2,8 +2,10 @@ import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { toast } from "sonner"
-import { updateThread } from "@/frontend/storage/queries"
+import { updateThread, createMessageSummary as createMessageSummaryLocally } from "@/frontend/storage/queries"
 import { triggerUpdate } from "./useLiveQuery"
+import { useConvexAuth } from "convex/react"
+import type { Id } from "@/convex/_generated/dataModel";
 
 interface MessageSummaryPayload {
   success: boolean
@@ -14,6 +16,7 @@ interface MessageSummaryPayload {
 export const useMessageSummary = () => {
   const getKey = useAPIKeyStore((state) => state.getKey)
   const hasUserKey = useAPIKeyStore((state) => state.hasUserKey)
+  const { isAuthenticated } = useConvexAuth();
 
   const generateTitleMutation = useMutation(api.messages.generateTitleForMessage)
 
@@ -24,10 +27,12 @@ export const useMessageSummary = () => {
         isTitle?: boolean
         messageId: string
         threadId: string
+        convexMessageId?: Id<"messages">
+        convexThreadId?: Id<"threads">
       }
     }
   ) => {
-    const { isTitle = false, messageId, threadId } = options?.body || {}
+    const { isTitle = false, messageId, threadId, convexMessageId, convexThreadId } = options?.body || {}
 
     if (!messageId || !threadId) {
       console.error("MessageId and ThreadId are required for message summary.")
@@ -36,18 +41,22 @@ export const useMessageSummary = () => {
     }
 
     try {
-      const userGoogleApiKey = hasUserKey("google") ? getKey("google") || undefined : undefined
+      if (isAuthenticated && convexMessageId && convexThreadId) {
+        const userGoogleApiKey = hasUserKey("google") ? (getKey("google") || undefined) : undefined
 
-      await generateTitleMutation({
-        prompt,
-        isTitle,
-        messageId: messageId as any,
-        threadId: threadId as any,
-        userGoogleApiKey,
-      })
-
-      if (!userGoogleApiKey && isTitle) {
-        triggerUpdate()
+        await generateTitleMutation({
+          prompt,
+          isTitle,
+          messageId: convexMessageId,
+          threadId: convexThreadId,
+          userGoogleApiKey,
+        })
+      } else {
+        await createMessageSummaryLocally(threadId, messageId, prompt.slice(0, 50) + "...");
+        if (isTitle) {
+          await updateThread(threadId, prompt.slice(0, 50) + "...");
+        }
+        triggerUpdate();
       }
     } catch (error: any) {
       console.error("Error generating title:", error)
