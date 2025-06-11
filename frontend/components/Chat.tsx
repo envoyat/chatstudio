@@ -13,6 +13,7 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import { useConvexAuth } from "convex/react"
 import { getConvexHttpUrl } from "@/lib/utils"
 import type { Id } from "@/convex/_generated/dataModel"
+import { toast } from "sonner"
 
 interface ChatProps {
   threadId: string // This is the UUID from the URL, used for client-side routing/storage
@@ -25,13 +26,16 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
   
   // currentConvexThreadId will store the actual Convex `_id` once resolved
   const [currentConvexThreadId, setCurrentConvexThreadId] = useState<Id<"threads"> | null>(null);
+  // Add a ref to hold the latest convexThreadId for immediate access in callbacks
+  const currentConvexThreadIdRef = useRef<Id<"threads"> | null>(null);
+
   const { isAuthenticated } = useConvexAuth()
   
   // Convex queries and mutations
   // Use `initialThreadUuid` (from URL) to find existing thread in Convex
   const existingThread = useThreadByUuid(isAuthenticated ? initialThreadUuid : undefined);
   const createMessageMutation = useCreateMessage();
-  const createThreadMutation = useCreateThread();
+  const createThreadMutation = useCreateThread(); // Keep this for ChatInput to create new threads
   const updateThreadMutation = useUpdateThread();
   
   // Resolve currentConvexThreadId from existingThread, or null if new/unauthenticated
@@ -48,40 +52,47 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
       setCurrentConvexThreadId(null);
     }
   }, [isAuthenticated, existingThread, initialThreadUuid]);
+
+  // Update the ref whenever the currentConvexThreadId state changes
+  // This ensures the ref always holds the most up-to-date value
+  useEffect(() => {
+    currentConvexThreadIdRef.current = currentConvexThreadId;
+  }, [currentConvexThreadId]);
   
   // Determine if a user key is available for the selected model's provider
   // This will be passed to the Convex HTTP action.
   const modelConfig = getEffectiveModelConfig(selectedModel, getKey, hasUserKey);
   const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined;
 
-  // Store the _id of the last assistant message received from Convex
-  const lastConvexAssistantMessageIdRef = useRef<Id<"messages"> | null>(null);
-
   const saveAIMessageToConvex = useCallback(async (aiMessageContent: string, parts: UIMessage["parts"]) => {
-    if (!isAuthenticated || !currentConvexThreadId) {
-      // Unauthenticated users or no thread created yet (e.g., first message not user's)
-      console.warn("Skipping AI message persistence: Not authenticated or no thread ID.");
+    // Access the latest thread ID directly from the ref
+    const latestConvexThreadId = currentConvexThreadIdRef.current;
+
+    if (!isAuthenticated || !latestConvexThreadId) {
+      // This warning is for expected behavior (unauthenticated chats not persisting)
+      // or if there's a real issue with thread ID availability.
+      console.warn("Skipping AI message persistence: Not authenticated or no thread ID available at persistence time.");
       return;
     }
 
     try {
       const messageDbId = await createMessageMutation({
-        threadId: currentConvexThreadId,
+        threadId: latestConvexThreadId, // Use the ID from the ref
         content: aiMessageContent,
         role: "assistant",
         parts: parts || [], // Provide default empty array if parts is undefined
       });
-      lastConvexAssistantMessageIdRef.current = messageDbId;
 
       await updateThreadMutation({
-        threadId: currentConvexThreadId,
+        threadId: latestConvexThreadId, // Use the ID from the ref
         lastMessageAt: Date.now(),
       });
     } catch (error) {
       console.error("Failed to save AI message to Convex:", error);
-      // Potentially show a toast error to the user
+      // Provide user feedback
+      toast.error("Failed to save AI response to database. Please check your connection.");
     }
-  }, [isAuthenticated, currentConvexThreadId, createMessageMutation, updateThreadMutation]);
+  }, [isAuthenticated, createMessageMutation, updateThreadMutation]); // Remove currentConvexThreadId from dependencies
 
   const { messages, input, status, setInput, setMessages, append, stop, reload, error } = useChat({
     api: getConvexHttpUrl("/api/chat"), // Point AI SDK to Convex HTTP action

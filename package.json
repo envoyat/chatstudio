@@ -72,7 +72,7 @@
     "rehype-katex": "latest",
     "remark-gfm": "latest",
     "remark-math": "latest",
-    "sonner": "latest",
+    "sonner": "^2.0.5",
     "tailwind-merge": "^2.5.5",
     "tailwind-scrollbar": "latest",
     "tailwindcss-animate": "^1.0.7",
