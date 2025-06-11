@@ -9,6 +9,7 @@ export const getMessagesByThreadId = query({
   },
   returns: v.array(v.object({
     _id: v.id("messages"),
+    _creationTime: v.number(),
     threadId: v.id("threads"),
     userId: v.optional(v.id("users")),
     parts: v.any(),
@@ -25,8 +26,8 @@ export const getMessagesByThreadId = query({
       throw new Error("Thread not found");
     }
     
-    // Allow access if user owns the thread or it's anonymous
-    if (thread.userId !== user?._id && thread.userId !== undefined) {
+    // Allow access if user owns the thread or it's anonymous or user is authenticated and thread has no owner
+    if (thread.userId && thread.userId !== user?._id) {
       throw new Error("Unauthorized");
     }
     
@@ -58,8 +59,8 @@ export const createMessage = mutation({
       throw new Error("Thread not found");
     }
     
-    // Allow creation if user owns the thread or it's anonymous
-    if (thread.userId !== user?._id && thread.userId !== undefined) {
+    // Allow creation if user owns the thread or it's anonymous or user is authenticated and thread has no owner
+    if (thread.userId && thread.userId !== user?._id) {
       throw new Error("Unauthorized");
     }
     

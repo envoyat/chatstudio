@@ -9,6 +9,7 @@ export const getMessageSummaries = query({
   },
   returns: v.array(v.object({
     _id: v.id("messageSummaries"),
+    _creationTime: v.number(),
     threadId: v.id("threads"),
     messageId: v.id("messages"),
     userId: v.optional(v.id("users")),

@@ -7,6 +7,7 @@ export const getThreads = query({
   args: {},
   returns: v.array(v.object({
     _id: v.id("threads"),
+    _creationTime: v.number(),
     title: v.string(),
     userId: v.optional(v.id("users")),
     createdAt: v.number(),
