@@ -11,6 +11,10 @@ export function useThread(threadId: Id<"threads"> | undefined) {
   return useQuery(api.threads.get, threadId ? { threadId } : "skip");
 }
 
+export function useThreadByUuid(uuid: string | undefined) {
+  return useQuery(api.threads.getByUuid, uuid ? { uuid } : "skip");
+}
+
 export function useCreateThread() {
   return useMutation(api.threads.create);
 }
@@ -25,6 +29,12 @@ export function useDeleteThread() {
 
 // Message hooks
 export function useMessages(threadId: Id<"threads"> | undefined) {
+  return useQuery(api.messages.list, threadId ? { threadId } : "skip");
+}
+
+export function useMessagesByUuid(uuid: string | undefined) {
+  const thread = useThreadByUuid(uuid);
+  const threadId = thread?._id;
   return useQuery(api.messages.list, threadId ? { threadId } : "skip");
 }
 

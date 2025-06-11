@@ -4,6 +4,7 @@ import { mutation, query } from "./_generated/server";
 export const create = mutation({
   args: {
     title: v.string(),
+    uuid: v.optional(v.string()),
   },
   returns: v.id("threads"),
   handler: async (ctx, args) => {
@@ -14,6 +15,7 @@ export const create = mutation({
 
     const now = Date.now();
     const threadId = await ctx.db.insert("threads", {
+      uuid: args.uuid || crypto.randomUUID(),
       title: args.title,
       userId: identity.subject,
       createdAt: now,
@@ -25,11 +27,48 @@ export const create = mutation({
   },
 });
 
+export const getByUuid = query({
+  args: {
+    uuid: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("threads"),
+      _creationTime: v.number(),
+      uuid: v.string(),
+      title: v.string(),
+      userId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      lastMessageAt: v.number(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const thread = await ctx.db
+      .query("threads")
+      .withIndex("by_uuid", (q) => q.eq("uuid", args.uuid))
+      .first();
+    
+    if (!thread || thread.userId !== identity.subject) {
+      return null;
+    }
+
+    return thread;
+  },
+});
+
 export const list = query({
   args: {},
   returns: v.array(v.object({
     _id: v.id("threads"),
     _creationTime: v.number(),
+    uuid: v.string(),
     title: v.string(),
     userId: v.string(),
     createdAt: v.number(),
@@ -143,6 +182,7 @@ export const get = query({
     v.object({
       _id: v.id("threads"),
       _creationTime: v.number(),
+      uuid: v.string(),
       title: v.string(),
       userId: v.string(),
       createdAt: v.number(),

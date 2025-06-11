@@ -32,6 +32,7 @@ export interface MessageSummary {
 export function convertConvexThread(convexThread: {
   _id: Id<"threads">;
   _creationTime: number;
+  uuid: string;
   title: string;
   userId: string;
   createdAt: number;
@@ -40,7 +41,7 @@ export function convertConvexThread(convexThread: {
 }): Thread {
   return {
     _id: convexThread._id,
-    id: convexThread._id,
+    id: convexThread.uuid, // Use UUID as the id for URL routing
     title: convexThread.title,
     createdAt: new Date(convexThread.createdAt),
     updatedAt: new Date(convexThread.updatedAt),

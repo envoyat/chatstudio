@@ -4,7 +4,7 @@ import Chat from "@/frontend/components/Chat"
 import { useParams } from "react-router-dom"
 import type { UIMessage } from "ai"
 import { useConvexAuth } from "convex/react"
-import { useMessages } from "@/lib/convex-hooks"
+import { useMessagesByUuid } from "@/lib/convex-hooks"
 import { convertConvexMessage } from "@/lib/convex-storage"
 import { useMemo } from "react"
 
@@ -14,8 +14,8 @@ export default function Thread() {
 
   const { isAuthenticated } = useConvexAuth()
   
-  // For authenticated users, load messages from Convex
-  const convexMessages = useMessages(isAuthenticated ? (id as any) : undefined)
+  // For authenticated users, load messages from Convex using UUID
+  const convexMessages = useMessagesByUuid(isAuthenticated ? id : undefined)
 
   const convertToUIMessages = useMemo(() => {
     if (!isAuthenticated || !convexMessages) return []

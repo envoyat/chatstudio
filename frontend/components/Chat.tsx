@@ -9,9 +9,9 @@ import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getEffectiveModelConfig } from "@/lib/models"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
-import { useCreateMessage, useCreateThread, useUpdateThread } from "@/lib/convex-hooks"
+import { useCreateMessage, useCreateThread, useUpdateThread, useThreadByUuid } from "@/lib/convex-hooks"
 import { memoryStorage } from "@/lib/convex-storage"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { useConvexAuth } from "convex/react"
 
 interface ChatProps {
@@ -25,10 +25,18 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
   const [convexThreadId, setConvexThreadId] = useState<string | null>(null)
   const { isAuthenticated } = useConvexAuth()
   
-  // Convex mutations
+  // Convex queries and mutations
+  const existingThread = useThreadByUuid(isAuthenticated ? threadId : undefined)
   const createMessage = useCreateMessage()
   const createThread = useCreateThread()
   const updateThread = useUpdateThread()
+  
+  // Set convexThreadId if thread exists
+  useEffect(() => {
+    if (existingThread) {
+      setConvexThreadId(existingThread._id)
+    }
+  }, [existingThread])
   
   // Compute effective model config directly in component to avoid infinite loop
   const modelConfig = getEffectiveModelConfig(selectedModel, getKey, hasUserKey)
@@ -41,7 +49,10 @@ export default function Chat({ threadId, initialMessages }: ChatProps) {
       // Create thread if it doesn't exist and this is the first user message
       if (!threadIdToUse && message.role === "user") {
         try {
-          threadIdToUse = await createThread({ title: message.content.slice(0, 50) + "..." })
+          threadIdToUse = await createThread({ 
+            title: message.content.slice(0, 50) + "...",
+            uuid: threadId // Use the threadId from the URL as the UUID
+          })
           setConvexThreadId(threadIdToUse)
         } catch (error) {
           console.error("Failed to create thread:", error)

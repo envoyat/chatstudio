@@ -3,6 +3,7 @@ import { v } from "convex/values";
 
 export default defineSchema({
   threads: defineTable({
+    uuid: v.string(), // UUID for URL routing
     title: v.string(),
     userId: v.string(), // Clerk user ID
     createdAt: v.number(),
@@ -10,7 +11,8 @@ export default defineSchema({
     lastMessageAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_user_and_last_message", ["userId", "lastMessageAt"]),
+    .index("by_user_and_last_message", ["userId", "lastMessageAt"])
+    .index("by_uuid", ["uuid"]),
 
   messages: defineTable({
     threadId: v.id("threads"),
