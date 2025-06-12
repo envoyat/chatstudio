@@ -62,7 +62,7 @@ const providers: Provider[] = [
     name: 'OpenAI',
     placeholder: 'sk-...',
     helpUrl: 'https://platform.openai.com/settings/organization/api-keys',
-    models: ['GPT-4.1', 'GPT-4.1-mini', 'GPT-4.1-nano', 'o3', 'o4-mini'],
+    models: ['GPT-4.1', 'GPT-4.1-mini', 'GPT-4.1-nano', 'o4-mini'],
     validateKey: (key: string) => key.startsWith('sk-') && key.length > 40,
     validationMessage: 'API key format appears incorrect. OpenAI keys typically start with "sk-"'
   },
