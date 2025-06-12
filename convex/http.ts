@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { streamText } from "ai";
@@ -41,6 +42,10 @@ http.route({
         case "google":
           const google = createGoogleGenerativeAI({ apiKey });
           aiClientModel = google(modelConfig.modelId);
+          break;
+        case "anthropic":
+          const anthropic = createAnthropic({ apiKey });
+          aiClientModel = anthropic(modelConfig.modelId);
           break;
         case "openai":
           const openai = createOpenAI({ apiKey });
