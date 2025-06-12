@@ -36,11 +36,14 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
     setTemperature(value[0])
   }
 
+  const MILLION_THRESHOLD = 1000000
+  const THOUSAND_THRESHOLD = 1000
+
   const formatTokenCount = (count: number): string => {
-    if (count >= 1000000) {
-      return `${(count / 1000000).toFixed(1)}M`
-    } else if (count >= 1000) {
-      return `${(count / 1000).toFixed(1)}k`
+    if (count >= MILLION_THRESHOLD) {
+      return `${(count / MILLION_THRESHOLD).toFixed(1)}M`
+    } else if (count >= THOUSAND_THRESHOLD) {
+      return `${(count / THOUSAND_THRESHOLD).toFixed(1)}k`
     }
     return count.toString()
   }
