@@ -9,7 +9,7 @@ import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { getEffectiveModelConfig } from "@/lib/models"
-import { ThemeToggle } from "@/components/ui/theme-toggle"
+
 import { useCreateMessage, useCreateThread, useUpdateThread, useThreadByUuid } from "@/lib/convex-hooks"
 import { useTokenCounter } from "@/frontend/hooks/useTokenCounter"
 import { useState, useCallback, useEffect, useRef } from "react"
@@ -160,10 +160,7 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
         </div>
       </div>
       
-      <div className="fixed right-4 top-4 z-20 flex flex-col gap-2">
-        <ThemeToggle />
-        <ChatRunSettings className="w-80" />
-      </div>
+      <ChatRunSettings />
     </div>
   )
 }
