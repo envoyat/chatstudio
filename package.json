@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^1.2.12",
     "@ai-sdk/google": "latest",
     "@ai-sdk/openai": "latest",
     "@ai-sdk/react": "latest",
@@ -52,6 +53,7 @@
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.5.1",
     "fast-deep-equal": "latest",
+    "gpt-tokenizer": "^3.0.0",
     "immer": "latest",
     "input-otp": "1.4.1",
     "katex": "latest",
