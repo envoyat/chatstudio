@@ -5,17 +5,59 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { streamText } from "ai";
+import { streamText, tool } from "ai";
+import { z } from "zod";
+import { TavilyClient } from "tavily";
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
 
 const http = httpRouter();
 
+// Create the web search tool using Tavily
+const webSearchTool = tool({
+  description: 'Search the web for current information about a topic',
+  parameters: z.object({
+    query: z.string().describe('The search query'),
+  }),
+  execute: async ({ query }) => {
+    const tavilyApiKey = process.env.TAVILY_KEY;
+    if (!tavilyApiKey) {
+      throw new Error('Tavily API key not found');
+    }
+
+    const tavilyClient = new TavilyClient({ apiKey: tavilyApiKey });
+    
+    try {
+      const response = await tavilyClient.search({
+        query,
+        search_depth: "basic",
+        include_images: false,
+        include_answer: true,
+        max_results: 5,
+      });
+
+      return {
+        query,
+        results: response.results.map((result: any) => ({
+          title: result.title,
+          url: result.url,
+          content: result.content,
+          score: result.score,
+        })),
+        answer: response.answer,
+      };
+    } catch (error) {
+      console.error('Tavily search error:', error);
+      throw new Error(`Web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  },
+});
+
 http.route({
   path: "/api/chat",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const { messages, model, userApiKey } = await request.json();
+    const { messages, model, userApiKey, webSearchEnabled, temperature } = await request.json();
 
     try {
       const aiModelName = model as AIModel;
@@ -62,9 +104,10 @@ http.route({
           });
       }
 
-      const result = await streamText({
+      const streamTextOptions: any = {
         model: aiClientModel,
         messages: messages, // Messages from the request body
+        temperature: temperature || 0.7,
         system: `
           You are Chat Studio, a knowledgeable AI companion designed to assist users with various questions and tasks.
           
@@ -85,8 +128,26 @@ http.route({
           • Inline usage: "The formula $a^2 + b^2 = c^2$ represents the Pythagorean theorem"
           • Block format:
           $$\\int_{0}^{\\infty} e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
+
+          ${webSearchEnabled ? `
+          You have access to a web search tool. Use it when:
+          - The user asks about current events, recent news, or time-sensitive information
+          - You need up-to-date information that may have changed since your training data
+          - The user specifically requests current information about a topic
+          
+          When you use web search, provide clear attribution to your sources and explain when the information was found.
+          ` : ''}
         `,
-      });
+      };
+
+      // Add tools if web search is enabled
+      if (webSearchEnabled) {
+        streamTextOptions.tools = {
+          webSearch: webSearchTool,
+        };
+      }
+
+      const result = await streamText(streamTextOptions);
 
       // Respond with the stream, adding CORS headers
       return result.toDataStreamResponse({

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { ChevronDown, Check, ArrowUpIcon } from "lucide-react"
+import { ChevronDown, Check, ArrowUpIcon, Search } from "lucide-react"
 import { memo, useCallback, useMemo } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -13,6 +13,7 @@ import type { UseChatHelpers } from "@ai-sdk/react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
+import { useWebSearchStore } from "@/frontend/stores/WebSearchStore"
 import { AI_MODELS, type AIModel, isModelAvailable } from "@/lib/models"
 import type { UIMessage } from "ai"
 import { v4 as uuidv4 } from "uuid"
@@ -179,7 +180,10 @@ function PureChatInput({ threadId, input, status, setInput, append, stop, convex
 
             <div className="h-14 flex items-center px-2">
               <div className="flex items-center justify-between w-full">
-                <ChatModelDropdown />
+                <div className="flex items-center gap-2">
+                  <ChatModelDropdown />
+                  <WebSearchToggle />
+                </div>
 
                 {status === "submitted" || status === "streaming" ? (
                   <StopButton stop={stop} />
@@ -272,5 +276,29 @@ const PureSendButton = ({ onSubmit, disabled }: SendButtonProps) => {
 const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
   return prevProps.disabled === nextProps.disabled
 })
+
+const PureWebSearchToggle = () => {
+  const { isWebSearchEnabled, toggleWebSearch } = useWebSearchStore()
+
+  return (
+    <Button
+      variant={isWebSearchEnabled ? "default" : "ghost"}
+      size="sm"
+      onClick={toggleWebSearch}
+      className={cn(
+        "flex items-center gap-1 h-8 px-2 text-xs rounded-md transition-colors",
+        isWebSearchEnabled 
+          ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+          : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+      )}
+      aria-label={`Web search ${isWebSearchEnabled ? 'enabled' : 'disabled'}`}
+    >
+      <Search className="w-3 h-3" />
+      <span className="hidden sm:inline">Search</span>
+    </Button>
+  )
+}
+
+const WebSearchToggle = memo(PureWebSearchToggle)
 
 export default ChatInput

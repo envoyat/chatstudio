@@ -78,6 +78,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwind-scrollbar": "latest",
     "tailwindcss-animate": "^1.0.7",
+    "tavily": "^1.0.2",
     "use-sync-external-store": "latest",
     "uuid": "latest",
     "vaul": "^0.9.6",

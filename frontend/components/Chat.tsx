@@ -8,6 +8,7 @@ import type { UIMessage } from "ai"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
+import { useWebSearchStore } from "@/frontend/stores/WebSearchStore"
 import { getEffectiveModelConfig } from "@/lib/models"
 
 import { useCreateMessage, useCreateThread, useUpdateThread, useThreadByUuid } from "@/lib/convex-hooks"
@@ -27,6 +28,7 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
   const { getKey, hasUserKey } = useAPIKeyStore()
   const selectedModel = useModelStore((state) => state.selectedModel)
   const temperature = useChatRunSettingsStore((state) => state.temperature)
+  const isWebSearchEnabled = useWebSearchStore((state) => state.isWebSearchEnabled)
   
   // currentConvexThreadId will store the actual Convex `_id` once resolved
   const [currentConvexThreadId, setCurrentConvexThreadId] = useState<Id<"threads"> | null>(null);
@@ -123,6 +125,7 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
       model: selectedModel,
       temperature: temperature,
       userApiKey: userApiKeyForModel, // Pass the user's API key if available
+      webSearchEnabled: isWebSearchEnabled, // Pass web search state
     },
   });
 
