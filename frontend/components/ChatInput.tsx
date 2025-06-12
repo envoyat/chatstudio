@@ -11,24 +11,28 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import useAutoResizeTextarea from "@/hooks/useAutoResizeTextArea"
 import type { UseChatHelpers } from "@ai-sdk/react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { createMessage, createThread } from "@/frontend/storage/queries"
-import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
-import { AI_MODELS, type AIModel, getEffectiveModelConfig, isModelAvailable } from "@/lib/models"
-import KeyPrompt from "@/frontend/components/KeyPrompt"
+import { AI_MODELS, type AIModel, isModelAvailable } from "@/lib/models"
 import type { UIMessage } from "ai"
 import { v4 as uuidv4 } from "uuid"
 import { StopIcon } from "@/components/ui/icons"
 import { useMessageSummary } from "../hooks/useMessageSummary"
 
+// New imports for Convex
+import { useConvexAuth } from "convex/react"
+import { useCreateMessage, useCreateThread } from "@/lib/convex-hooks";
+import type { Id } from "@/convex/_generated/dataModel"; // Import Convex Id type
+
 interface ChatInputProps {
-  threadId: string
+  threadId: string // This is the UUID from the URL, used for client-side routing/storage
   input: UseChatHelpers["input"]
   status: UseChatHelpers["status"]
   setInput: UseChatHelpers["setInput"]
   append: UseChatHelpers["append"]
   stop: UseChatHelpers["stop"]
+  convexThreadId: Id<"threads"> | null; // New prop: Convex thread ID if available
+  onConvexThreadIdChange: React.Dispatch<React.SetStateAction<Id<"threads"> | null>>; // New prop for updating convex thread ID
 }
 
 interface StopButtonProps {
@@ -48,9 +52,7 @@ const createUserMessage = (id: string, text: string): UIMessage => ({
   createdAt: new Date(),
 })
 
-function PureChatInput({ threadId, input, status, setInput, append, stop }: ChatInputProps) {
-  const canChat = useAPIKeyStore((state) => state.hasRequiredKeys())
-
+function PureChatInput({ threadId, input, status, setInput, append, stop, convexThreadId, onConvexThreadIdChange }: ChatInputProps) {
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 72,
     maxHeight: 200,
@@ -61,41 +63,78 @@ function PureChatInput({ threadId, input, status, setInput, append, stop }: Chat
 
   const isDisabled = useMemo(() => !input.trim() || status === "streaming" || status === "submitted", [input, status])
 
-  const { complete } = useMessageSummary()
+  const { isAuthenticated } = useConvexAuth(); // Get authentication status
+  const convexCreateThread = useCreateThread(); // Convex mutation for creating threads
+  const convexCreateMessage = useCreateMessage(); // Convex mutation for creating messages
+  const { complete } = useMessageSummary(); // Hook for message summary/title generation
 
   const handleSubmit = useCallback(async () => {
-    const currentInput = textareaRef.current?.value || input
+    const currentInput = textareaRef.current?.value || input;
+    if (!currentInput.trim() || isDisabled) return;
 
-    if (!currentInput.trim() || status === "streaming" || status === "submitted") return
+    const uiMessageId = uuidv4(); // Client-side UUID for AI SDK UIMessage
 
-    const messageId = uuidv4()
+    let messageDbId: string | Id<"messages"> | undefined; // Actual ID saved to DB (Convex Id or local UUID)
+    let threadDbId: Id<"threads"> | string | undefined; // Actual thread ID saved to DB (Convex Id or local UUID)
 
-    // Check if this is a new thread (no existing thread ID in URL)
-    const isNewThread = location.pathname === "/" || location.pathname === "/chat"
+    const isNewThreadRoute = location.pathname === "/" || location.pathname === "/chat";
 
-    if (isNewThread) {
-      navigate(`/chat/${threadId}`)
-      await createThread(threadId)
-      triggerUpdate()
-      complete(currentInput.trim(), {
-        body: { threadId, messageId, isTitle: true },
-      })
+    if (isAuthenticated) {
+      // Authenticated flow: use Convex DB
+      if (isNewThreadRoute || !convexThreadId) {
+        // If it's a new chat session OR a new thread for an existing UUID (e.g. first message in a non-saved chat)
+        const newConvexThreadId = await convexCreateThread({
+          title: currentInput.trim().slice(0, 50) + "...",
+          uuid: threadId, // Use the client-generated UUID from URL as the Convex thread's UUID
+        });
+        threadDbId = newConvexThreadId;
+        onConvexThreadIdChange(newConvexThreadId); // Update the convex thread ID in parent component
+        // Navigate if it was a new chat session before saving to DB
+        if (isNewThreadRoute) {
+          navigate(`/chat/${threadId}`);
+        }
+      } else {
+        threadDbId = convexThreadId; // Use the provided Convex thread ID
+      }
+
+      // Create message in Convex and capture its Convex ID
+      messageDbId = await convexCreateMessage({
+        threadId: threadDbId as Id<"threads">, // Ensure it's Convex Id
+        content: currentInput.trim(),
+        role: "user",
+        parts: [{ type: "text", text: currentInput.trim() }],
+      });
+
     } else {
-      complete(currentInput.trim(), { body: { messageId, threadId } })
+      // Unauthenticated flow: ephemeral chat (no persistence)
+      threadDbId = threadId; // Use UUID for UI purposes only
+      if (isNewThreadRoute) {
+        navigate(`/chat/${threadId}`);
+      }
+      messageDbId = uiMessageId; // Use UI message ID
     }
 
-    const userMessage = createUserMessage(messageId, currentInput.trim())
-    await createMessage(threadId, userMessage)
-    triggerUpdate()
+    const userMessage = createUserMessage(uiMessageId, currentInput.trim());
+    append(userMessage); // Append to AI SDK messages
+    setInput("");
+    adjustHeight(true);
 
-    append(userMessage)
-    setInput("")
-    adjustHeight(true)
-  }, [input, status, setInput, adjustHeight, append, textareaRef, threadId, complete, navigate, location])
-
-  if (!canChat) {
-    return <KeyPrompt />
-  }
+    // Call message summary with the correct database IDs (Convex IDs or local UUIDs)
+    if (messageDbId && threadDbId) {
+      complete(currentInput.trim(), {
+        body: {
+          messageId: uiMessageId, // Always pass the AI SDK UI ID for `useMessageSummary`'s general logic
+          threadId: threadId,     // Always pass the AI SDK UI thread ID for `useMessageSummary`'s general logic
+          isTitle: isNewThreadRoute,
+          // Pass Convex IDs ONLY if authenticated
+          ...(isAuthenticated && messageDbId && threadDbId && {
+            convexMessageId: messageDbId as Id<"messages">,
+            convexThreadId: threadDbId as Id<"threads">,
+          }),
+        },
+      });
+    }
+  }, [input, isDisabled, setInput, adjustHeight, append, textareaRef, threadId, complete, navigate, location, isAuthenticated, convexThreadId, convexCreateThread, convexCreateMessage, onConvexThreadIdChange])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -159,6 +198,7 @@ function PureChatInput({ threadId, input, status, setInput, append, stop }: Chat
 const ChatInput = memo(PureChatInput, (prevProps, nextProps) => {
   if (prevProps.input !== nextProps.input) return false
   if (prevProps.status !== nextProps.status) return false
+  if (prevProps.convexThreadId !== nextProps.convexThreadId) return false // Include new prop in memoization
   return true
 })
 

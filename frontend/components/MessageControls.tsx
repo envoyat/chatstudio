@@ -6,9 +6,11 @@ import { cn } from "@/lib/utils"
 import { Check, Copy, RefreshCcw, SquarePen } from "lucide-react"
 import type { UIMessage } from "ai"
 import type { UseChatHelpers } from "@ai-sdk/react"
-import { deleteTrailingMessages } from "@/frontend/storage/queries"
-import { triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
+import { useConvexAuth } from "convex/react"
+import { useDeleteTrailingMessages } from "@/lib/convex-hooks"
+import type { Id } from "@/convex/_generated/dataModel"
+import { toast } from "sonner"
 
 interface MessageControlsProps {
   threadId: string
@@ -18,6 +20,8 @@ interface MessageControlsProps {
   setMode?: Dispatch<SetStateAction<"view" | "edit">>
   reload: UseChatHelpers["reload"]
   stop: UseChatHelpers["stop"]
+  convexThreadId: Id<"threads"> | null
+  convexMessageId: Id<"messages">
 }
 
 export default function MessageControls({
@@ -28,9 +32,13 @@ export default function MessageControls({
   setMode,
   reload,
   stop,
+  convexThreadId,
+  convexMessageId,
 }: MessageControlsProps) {
   const [copied, setCopied] = useState(false)
   const hasRequiredKeys = useAPIKeyStore((state) => state.hasRequiredKeys())
+  const { isAuthenticated } = useConvexAuth()
+  const deleteTrailingMessagesMutation = useDeleteTrailingMessages()
 
   const handleCopy = () => {
     navigator.clipboard.writeText(content)
@@ -41,40 +49,56 @@ export default function MessageControls({
   }
 
   const handleRegenerate = async () => {
-    // stop the current request
-    stop()
-
-    if (message.role === "user") {
-      await deleteTrailingMessages(threadId, message.createdAt as Date, false)
-
-      setMessages((messages) => {
-        const index = messages.findIndex((m) => m.id === message.id)
-
-        if (index !== -1) {
-          return [...messages.slice(0, index + 1)]
-        }
-
-        return messages
-      })
-    } else {
-      await deleteTrailingMessages(threadId, message.createdAt as Date)
-
-      setMessages((messages) => {
-        const index = messages.findIndex((m) => m.id === message.id)
-
-        if (index !== -1) {
-          return [...messages.slice(0, index)]
-        }
-
-        return messages
-      })
+    if (!hasRequiredKeys) {
+      toast.error("API keys are required to regenerate responses.")
+      return
     }
 
-    triggerUpdate()
+    if (!isAuthenticated || !convexThreadId || !convexMessageId) {
+      toast.error("Cannot regenerate for unsaved or unauthenticated chats.")
+      return
+    }
 
-    setTimeout(() => {
-      reload()
-    }, 0)
+    if (!message.createdAt) {
+      toast.error("Cannot regenerate message without creation timestamp.")
+      return
+    }
+
+    try {
+      stop() // Stop any ongoing streaming
+
+      const fromCreatedAt = message.createdAt.getTime()
+      
+      if (message.role === "user") {
+        await deleteTrailingMessagesMutation({
+          threadId: convexThreadId,
+          fromCreatedAt: fromCreatedAt,
+          inclusive: false, // Delete messages *after* this user message
+        })
+
+        setMessages((prevMessages) => {
+          const userMessageIndex = prevMessages.findIndex((m) => m.id === message.id)
+          return userMessageIndex !== -1 ? prevMessages.slice(0, userMessageIndex + 1) : prevMessages
+        })
+
+      } else if (message.role === "assistant") {
+        await deleteTrailingMessagesMutation({
+          threadId: convexThreadId,
+          fromCreatedAt: fromCreatedAt,
+          inclusive: true, // Delete this assistant message and subsequent ones
+        })
+
+        setMessages((prevMessages) => {
+          const assistantMessageIndex = prevMessages.findIndex((m) => m.id === message.id)
+          return assistantMessageIndex !== -1 ? prevMessages.slice(0, assistantMessageIndex) : prevMessages
+        })
+      }
+      
+      reload() // Trigger AI SDK to regenerate
+    } catch (error) {
+      console.error("Failed to regenerate message:", error)
+      toast.error("Failed to regenerate message. Please try again.")
+    }
   }
 
   return (
@@ -86,12 +110,12 @@ export default function MessageControls({
       <Button variant="ghost" size="icon" onClick={handleCopy}>
         {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
       </Button>
-      {setMode && hasRequiredKeys && (
+      {setMode && hasRequiredKeys && isAuthenticated && (
         <Button variant="ghost" size="icon" onClick={() => setMode("edit")}>
           <SquarePen className="w-4 h-4" />
         </Button>
       )}
-      {hasRequiredKeys && (
+      {hasRequiredKeys && isAuthenticated && (
         <Button variant="ghost" size="icon" onClick={handleRegenerate}>
           <RefreshCcw className="w-4 h-4" />
         </Button>

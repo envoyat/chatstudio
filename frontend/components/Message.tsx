@@ -9,6 +9,7 @@ import MessageControls from "./MessageControls"
 import type { UseChatHelpers } from "@ai-sdk/react"
 import MessageEditor from "./MessageEditor"
 import MessageReasoning from "./MessageReasoning"
+import type { Id } from "@/convex/_generated/dataModel"
 
 function PureMessage({
   threadId,
@@ -17,6 +18,7 @@ function PureMessage({
   reload,
   isStreaming,
   stop,
+  convexThreadId,
 }: {
   threadId: string
   message: UIMessage
@@ -24,6 +26,7 @@ function PureMessage({
   reload: UseChatHelpers["reload"]
   isStreaming: boolean
   stop: UseChatHelpers["stop"]
+  convexThreadId: Id<"threads"> | null
 }) {
   const [mode, setMode] = useState<"view" | "edit">("view")
 
@@ -52,6 +55,8 @@ function PureMessage({
                   reload={reload}
                   setMode={setMode}
                   stop={stop}
+                  convexThreadId={convexThreadId}
+                  convexMessageId={message.id as Id<"messages">}
                 />
               )}
               {mode === "view" && <p>{part.text}</p>}
@@ -65,6 +70,8 @@ function PureMessage({
                   setMessages={setMessages}
                   reload={reload}
                   stop={stop}
+                  convexThreadId={convexThreadId}
+                  convexMessageId={message.id as Id<"messages">}
                 />
               )}
             </div>
@@ -79,6 +86,8 @@ function PureMessage({
                   setMessages={setMessages}
                   reload={reload}
                   stop={stop}
+                  convexThreadId={convexThreadId}
+                  convexMessageId={message.id as Id<"messages">}
                 />
               )}
             </div>
@@ -93,6 +102,7 @@ const PreviewMessage = memo(PureMessage, (prevProps, nextProps) => {
   if (prevProps.isStreaming !== nextProps.isStreaming) return false
   if (prevProps.message.id !== nextProps.message.id) return false
   if (!equal(prevProps.message.parts, nextProps.message.parts)) return false
+  if (prevProps.convexThreadId !== nextProps.convexThreadId) return false
   return true
 })
 
