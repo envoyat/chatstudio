@@ -3,12 +3,15 @@
 import { useChat } from "@ai-sdk/react"
 import Messages from "./Messages"
 import ChatInput from "./ChatInput"
+import ChatRunSettings from "./ChatRunSettings"
 import type { UIMessage } from "ai"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
+import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { getEffectiveModelConfig } from "@/lib/models"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { useCreateMessage, useCreateThread, useUpdateThread, useThreadByUuid } from "@/lib/convex-hooks"
+import { useTokenCounter } from "@/frontend/hooks/useTokenCounter"
 import { useState, useCallback, useEffect, useRef } from "react"
 import { useConvexAuth } from "convex/react"
 import { getConvexHttpUrl } from "@/lib/utils"
@@ -23,6 +26,7 @@ interface ChatProps {
 export default function Chat({ threadId: initialThreadUuid, initialMessages }: ChatProps) {
   const { getKey, hasUserKey } = useAPIKeyStore()
   const selectedModel = useModelStore((state) => state.selectedModel)
+  const temperature = useChatRunSettingsStore((state) => state.temperature)
   
   // currentConvexThreadId will store the actual Convex `_id` once resolved
   const [currentConvexThreadId, setCurrentConvexThreadId] = useState<Id<"threads"> | null>(null);
@@ -117,9 +121,13 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
     },
     body: {
       model: selectedModel,
+      temperature: temperature,
       userApiKey: userApiKeyForModel, // Pass the user's API key if available
     },
   });
+
+  // Count tokens in messages and update store
+  useTokenCounter(messages);
 
   return (
     <div className="relative w-full h-screen flex flex-col">
@@ -152,8 +160,9 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
         </div>
       </div>
       
-      <div className="fixed right-4 top-4 z-20 flex gap-2">
+      <div className="fixed right-4 top-4 z-20 flex flex-col gap-2">
         <ThemeToggle />
+        <ChatRunSettings className="w-80" />
       </div>
     </div>
   )
