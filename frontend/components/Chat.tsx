@@ -4,14 +4,18 @@ import { useChat } from "@ai-sdk/react"
 import Messages from "./Messages"
 import ChatInput from "./ChatInput"
 import ChatRunSettings from "./ChatRunSettings"
+import ChatRunSettings from "./ChatRunSettings"
 import type { UIMessage } from "ai"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { useWebSearchStore } from "@/frontend/stores/WebSearchStore"
+import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { getEffectiveModelConfig } from "@/lib/models"
 
+
 import { useCreateMessage, useCreateThread, useUpdateThread, useThreadByUuid } from "@/lib/convex-hooks"
+import { useTokenCounter } from "@/frontend/hooks/useTokenCounter"
 import { useTokenCounter } from "@/frontend/hooks/useTokenCounter"
 import { useState, useCallback, useEffect, useRef } from "react"
 import { useConvexAuth } from "convex/react"
@@ -29,6 +33,7 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
   const selectedModel = useModelStore((state) => state.selectedModel)
   const temperature = useChatRunSettingsStore((state) => state.temperature)
   const isWebSearchEnabled = useWebSearchStore((state) => state.isWebSearchEnabled)
+  const temperature = useChatRunSettingsStore((state) => state.temperature)
   
   // currentConvexThreadId will store the actual Convex `_id` once resolved
   const [currentConvexThreadId, setCurrentConvexThreadId] = useState<Id<"threads"> | null>(null);
@@ -124,10 +129,14 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
     body: {
       model: selectedModel,
       temperature: temperature,
+      temperature: temperature,
       userApiKey: userApiKeyForModel, // Pass the user's API key if available
       webSearchEnabled: isWebSearchEnabled, // Pass web search state
     },
   });
+
+  // Count tokens in messages and update store
+  useTokenCounter(messages);
 
   // Count tokens in messages and update store
   useTokenCounter(messages);
