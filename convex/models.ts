@@ -63,11 +63,11 @@ export const MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
     provider: "openai",
   },
   "o3": {
-    modelId: "o3",
+    modelId: "o3-2025-04-16",
     provider: "openai",
   },
   "o4-mini": {
-    modelId: "o4-mini",
+    modelId: "o4-mini-2025-04-16",
     provider: "openai",
   },
   "DeepSeek R1": {
