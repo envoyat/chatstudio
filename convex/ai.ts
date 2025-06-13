@@ -7,6 +7,7 @@ import type { CoreMessage, ToolCallPart, ToolResultPart } from "ai";
 
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
+import { MESSAGE_ROLES } from "./constants";
 
 // Import the stream functions from our new providers directory
 import * as openai from "./providers/openai";
@@ -26,7 +27,7 @@ const messageValidator = v.object({
   _id: v.id("messages"),
   _creationTime: v.number(),
   threadId: v.id("threads"),
-  role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data"), v.literal("tool")),
+  role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
   content: v.string(),
   parts: v.optional(v.any()),
   isComplete: v.optional(v.boolean()),
@@ -94,7 +95,7 @@ export const generateTitle = internalAction({
     try {
       const stream = google.stream(googleApiKey, "gemini-2.0-flash", [
         {
-          role: "system",
+          role: MESSAGE_ROLES.SYSTEM,
           content: `
             - You will generate a short title based on the first message a user begins a conversation with.
             - The title should be no more than 10 words.
@@ -103,7 +104,7 @@ export const generateTitle = internalAction({
           `
         },
         {
-          role: "user",
+          role: MESSAGE_ROLES.USER,
           content: args.prompt
         }
       ]);
@@ -230,9 +231,9 @@ export const chat = internalAction({
                   await ctx.runMutation(internal.messages.update, { messageId: assistantMessageId, content: body, toolCalls: undefined });
               }
           }
-          await ctx.runMutation(internal.messages.finalize, { messageId: assistantMessageId, content: body });
+          await ctx.runMutation(internal.messages.finalise, { messageId: assistantMessageId, content: body });
         } else {
-          await ctx.runMutation(internal.messages.finalize, {
+          await ctx.runMutation(internal.messages.finalise, {
             messageId: assistantMessageId,
             content: assistantResponse.content || "Sorry, I couldn't generate a response.",
           });
@@ -259,7 +260,7 @@ export const chat = internalAction({
         });
       }
       
-      await ctx.runMutation(internal.messages.finalize, {
+      await ctx.runMutation(internal.messages.finalise, {
         messageId: assistantMessageId,
         content: body,
       });
@@ -267,7 +268,7 @@ export const chat = internalAction({
     } catch (e: any) {
       const errorMessage = e.message || "An unknown error occurred";
       console.error(`[ai.chat] ACTION FAILED: ${errorMessage}`, e);
-      await ctx.runMutation(internal.messages.finalize, {
+      await ctx.runMutation(internal.messages.finalise, {
         messageId: assistantMessageId,
         content: `Sorry, I ran into an error: ${errorMessage}`,
       });

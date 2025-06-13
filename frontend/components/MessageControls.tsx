@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { api } from "@/convex/_generated/api"
 import { useModelStore } from "../stores/ModelStore"
 import { useAPIKeyStore } from "../stores/APIKeyStore"
+import { MESSAGE_ROLES } from "@/convex/constants"
 
 interface MessageControlsProps {
   message: UIMessage;
@@ -47,15 +48,15 @@ export default function MessageControls({
     let timestampToDeleteFrom: number;
     let inclusiveDelete: boolean;
 
-    if (message.role === 'user') {
+    if (message.role === MESSAGE_ROLES.USER) {
       contentToResend = message.content;
       timestampToDeleteFrom = message.createdAt.getTime();
       inclusiveDelete = true;
-    } else if (message.role === 'assistant') {
+    } else if (message.role === MESSAGE_ROLES.ASSISTANT) {
       const currentMessageIndex = messages.findIndex(m => m.id === message.id);
       const previousMessage = messages[currentMessageIndex - 1];
 
-      if (previousMessage && previousMessage.role === 'user') {
+      if (previousMessage && previousMessage.role === MESSAGE_ROLES.USER) {
         contentToResend = previousMessage.content;
         timestampToDeleteFrom = message.createdAt.getTime();
         inclusiveDelete = true;
@@ -100,7 +101,7 @@ export default function MessageControls({
   return (
     <div
       className={cn("opacity-0 group-hover:opacity-100 transition-opacity duration-100 flex gap-1", {
-        "absolute mt-5 right-2": message.role === "user",
+        "absolute mt-5 right-2": message.role === MESSAGE_ROLES.USER,
       })}
     >
       <Button variant="ghost" size="icon" onClick={handleCopy} title="Copy">
@@ -108,21 +109,21 @@ export default function MessageControls({
       </Button>
       
       {/* Only show Edit button for user messages */}
-      {message.role === "user" && isAuthenticated && (
+      {message.role === MESSAGE_ROLES.USER && isAuthenticated && (
         <Button variant="ghost" size="icon" onClick={() => setMode("edit")} title="Edit">
           <SquarePen className="w-4 h-4" />
         </Button>
       )}
 
       {/* Rerun from a user message. Re-prompts the AI with the same content. */}
-      {message.role === "user" && isAuthenticated && (
+      {message.role === MESSAGE_ROLES.USER && isAuthenticated && (
         <Button variant="ghost" size="icon" onClick={handleRegenerate} title="Rerun">
           <RefreshCcw className="w-4 h-4" />
         </Button>
       )}
 
        {/* Regenerate an assistant message. Deletes it and reruns the previous prompt. */}
-       {message.role === "assistant" && isAuthenticated && (
+       {message.role === MESSAGE_ROLES.ASSISTANT && isAuthenticated && (
         <Button variant="ghost" size="icon" onClick={handleRegenerate} title="Regenerate">
           <RefreshCcw className="w-4 h-4" />
         </Button>

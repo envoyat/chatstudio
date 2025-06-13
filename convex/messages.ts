@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { MESSAGE_ROLES } from "./constants";
 
 export const send = mutation({
   args: {
@@ -14,7 +15,7 @@ export const send = mutation({
   handler: async (ctx, { threadId, content, model, userApiKey, isWebSearchEnabled }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authorized to send messages");
+      throw new Error("Not authorised to send messages");
     }
 
     // 1. Insert the user's message into the database.
@@ -22,7 +23,7 @@ export const send = mutation({
     await ctx.db.insert("messages", {
       threadId,
       content,
-      role: "user",
+      role: MESSAGE_ROLES.USER,
       createdAt: Date.now(),
       isComplete: true,
     });
@@ -32,7 +33,7 @@ export const send = mutation({
     const assistantMessageId = await ctx.db.insert("messages", {
       threadId,
       content: "", // Start with an empty body
-      role: "assistant",
+      role: MESSAGE_ROLES.ASSISTANT,
       createdAt: Date.now(),
       isComplete: false, // Mark as incomplete/streaming
     });
@@ -74,7 +75,7 @@ export const list = query({
       _creationTime: v.number(),
       threadId: v.id("threads"),
       content: v.string(),
-      role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data"), v.literal("tool")),
+      role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
       parts: v.optional(v.any()),
       createdAt: v.number(),
       isComplete: v.optional(v.boolean()),
@@ -118,7 +119,7 @@ export const update = internalMutation({
   },
 });
 
-export const finalize = internalMutation({
+export const finalise = internalMutation({
   args: { messageId: v.id("messages"), content: v.string() },
   returns: v.null(),
   handler: async (ctx, { messageId, content }) => {
@@ -147,7 +148,7 @@ export const deleteTrailing = mutation({
 
     const thread = await ctx.db.get(args.threadId);
     if (!thread || thread.userId !== identity.subject) {
-      throw new Error("Not authorized to delete messages from this thread");
+      throw new Error("Not authorised to delete messages from this thread");
     }
 
     const inclusive = args.inclusive ?? true;
