@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { Doc } from "./_generated/dataModel";
 
 export const send = mutation({
   args: {
@@ -58,9 +57,9 @@ export const send = mutation({
     // 4. Schedule the backend action to stream the AI's response.
     // This runs in the background, decoupled from the client's request.
     // --- LOGGING START ---
-    console.log(`[messages.send] Scheduling 'openai.chat' action for assistant message ${assistantMessageId}.`);
+    console.log(`[messages.send] Scheduling 'ai.chat' action for assistant message ${assistantMessageId}.`);
     // --- LOGGING END ---
-    await ctx.scheduler.runAfter(0, internal.openai.chat, {
+    await ctx.scheduler.runAfter(0, internal.ai.chat, {
       messageHistory,
       assistantMessageId,
       model,
