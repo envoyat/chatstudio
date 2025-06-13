@@ -77,15 +77,14 @@ export const generateTitle = internalAction({
 
     try {
       // Use our new Google provider for title generation
-      const stream = google.stream(googleApiKey, "gemini-2.0-flash-exp", [
+      const stream = google.stream(googleApiKey, "gemini-2.0-flash", [ // Use a fast model
         {
           role: "system",
           content: `
-            - you will generate a short title based on the first message a user begins a conversation with
-            - ensure it is not more than 80 characters long
-            - the title should be a summary of the user's message
-            - you should NOT answer the user's message, you should only generate a summary/title
-            - do not use quotes or colons
+            - You will generate a short title based on the first message a user begins a conversation with.
+            - The title should be no more than 10 words.
+            - Do not use quotes or colons.
+            - Do not answer the user's question, only generate a title.
           `
         },
         {
@@ -103,22 +102,22 @@ export const generateTitle = internalAction({
       if (args.isTitle) {
         await ctx.scheduler.runAfter(
           0,
-          internal.threads.internalUpdateTitle, // Call internal mutation
-          { threadId: args.threadId, title: title },
+          internal.threads.internalUpdateTitle,
+          { threadId: args.threadId, title: title.trim() },
         );
       }
       
       await ctx.scheduler.runAfter(
         0,
-        internal.messages.internalCreateSummary, // Call internal mutation
-        { threadId: args.threadId, messageId: args.messageId, content: title },
+        internal.messages.internalCreateSummary,
+        { threadId: args.threadId, messageId: args.messageId, content: title.trim() },
       );
 
-      // Return a success response (optional, but good practice for actions)
-      return { success: true, title };
+      return { success: true, title: title.trim() };
     } catch (error: any) {
       console.error("Failed to generate title:", error);
-      throw new Error(`Failed to generate title: ${error.message || 'Unknown error'}`);
+      // Don't throw here, just log the error. The chat can continue without a title.
+      return { success: false };
     }
   },
 });

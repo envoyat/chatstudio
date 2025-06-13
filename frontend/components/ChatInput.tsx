@@ -10,7 +10,7 @@ import useAutoResizeTextarea from "@/hooks/useAutoResizeTextArea"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
-import { AI_MODELS, type AIModel, isModelAvailable } from "@/lib/models"
+import { AI_MODELS, type AIModel, isModelAvailable, getModelConfig } from "@/lib/models"
 import { useConvexAuth } from "convex/react"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
@@ -31,7 +31,6 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
   const location = useLocation()
   
   const selectedModel = useModelStore((state) => state.selectedModel)
-  const getModelConfig = useModelStore((state) => state.getModelConfig)
   const { getKey, hasUserKey } = useAPIKeyStore()
   
   const isDisabled = useMemo(() => !input.trim() || isStreaming, [input, isStreaming])
@@ -64,7 +63,7 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
         }
       }
 
-      const modelConfig = getModelConfig()
+      const modelConfig = getModelConfig(selectedModel)
       const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined
       
       const payload = {
@@ -90,7 +89,7 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
   }, [
     input, isDisabled, sendMessage, convexThreadId, onConvexThreadIdChange,
     isAuthenticated, convexCreateThread, threadId, location.pathname, navigate,
-    selectedModel, getModelConfig, getKey, hasUserKey, adjustHeight
+    selectedModel, getKey, hasUserKey, adjustHeight
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

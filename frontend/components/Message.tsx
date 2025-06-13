@@ -9,13 +9,9 @@ import type { Id } from "@/convex/_generated/dataModel"
 
 function PureMessage({
   message,
-  convexThreadId,
 }: {
   message: UIMessage
-  convexThreadId: Id<"threads"> | null
 }) {
-  const isStreaming = message.role === "assistant" && (message.data as { isComplete?: boolean } | undefined)?.isComplete === false;
-
   return (
     <div role="article" className={cn("flex flex-col", message.role === "user" ? "items-end" : "items-start")}>
       <div
@@ -34,10 +30,9 @@ function PureMessage({
 }
 
 const PreviewMessage = memo(PureMessage, (prevProps, nextProps) => {
-  if (prevProps.message.id !== nextProps.message.id) return false
-  if (!equal(prevProps.message, nextProps.message)) return false
-  if (prevProps.convexThreadId !== nextProps.convexThreadId) return false
-  return true
+  // Now that the parent component (Chat.tsx) memoizes the `messages` array,
+  // we can rely on a simpler deep equal comparison.
+  return equal(prevProps.message, nextProps.message);
 })
 
 PreviewMessage.displayName = "PreviewMessage"
