@@ -54,17 +54,13 @@ export const generateTitle = internalAction({
     title: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    // Try user's API key first, then fallback to host API key
     let googleApiKey = args.userGoogleApiKey;
-    let keySource = "user";
     
     if (!googleApiKey) {
       googleApiKey = getApiKeyFromConvexEnv("google");
-      keySource = "host";
     }
 
     if (!googleApiKey) {
-      // Provide a more specific error message
       const errorMessage = args.userGoogleApiKey 
         ? "Both user and host Google API keys are missing. Please set HOST_GOOGLE_API_KEY in Convex environment variables."
         : "No Google API key available. Either provide a user API key or set HOST_GOOGLE_API_KEY in Convex environment variables.";
@@ -73,11 +69,8 @@ export const generateTitle = internalAction({
       throw new Error(errorMessage);
     }
 
-    console.log(`Using ${keySource} Google API key for title generation`);
-
     try {
-      // Use our new Google provider for title generation
-      const stream = google.stream(googleApiKey, "gemini-2.0-flash", [ // Use a fast model
+      const stream = google.stream(googleApiKey, "gemini-2.0-flash", [
         {
           role: "system",
           content: `
@@ -98,7 +91,6 @@ export const generateTitle = internalAction({
         title += chunk;
       }
 
-      // Schedule mutations to update the database
       if (args.isTitle) {
         await ctx.scheduler.runAfter(
           0,
@@ -116,7 +108,6 @@ export const generateTitle = internalAction({
       return { success: true, title: title.trim() };
     } catch (error: any) {
       console.error("Failed to generate title:", error);
-      // Don't throw here, just log the error. The chat can continue without a title.
       return { success: false };
     }
   },
@@ -131,8 +122,6 @@ export const chat = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, { messageHistory, assistantMessageId, model, userApiKey }: ChatParams) => {
-    console.log(`[ai.chat] Action started for model: ${model}.`);
-    
     try {
       const aiModelName = model as AIModel;
       const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName];

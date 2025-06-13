@@ -6,16 +6,11 @@ export const send = mutation({
   args: {
     threadId: v.id("threads"),
     content: v.string(),
-    // We will get model and API key info from the client to pass to the action
     model: v.string(),
     userApiKey: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, { threadId, content, model, userApiKey }) => {
-    // --- LOGGING START ---
-    console.log(`[messages.send] Received request for thread ${threadId}.`);
-    // --- LOGGING END ---
-
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authorized to send messages");
@@ -30,9 +25,6 @@ export const send = mutation({
       createdAt: Date.now(),
       isComplete: true,
     });
-    // --- LOGGING START ---
-    console.log("[messages.send] Inserted user message.");
-    // --- LOGGING END ---
 
     // 2. Create a placeholder message for the assistant's response.
     // This will appear on the client instantly.
@@ -43,9 +35,6 @@ export const send = mutation({
       createdAt: Date.now(),
       isComplete: false, // Mark as incomplete/streaming
     });
-    // --- LOGGING START ---
-    console.log(`[messages.send] Inserted placeholder assistant message with ID: ${assistantMessageId}.`);
-    // --- LOGGING END ---
 
     // 3. Fetch the latest message history to provide context to the AI.
     const messageHistory = await ctx.db
@@ -56,9 +45,6 @@ export const send = mutation({
 
     // 4. Schedule the backend action to stream the AI's response.
     // This runs in the background, decoupled from the client's request.
-    // --- LOGGING START ---
-    console.log(`[messages.send] Scheduling 'ai.chat' action for assistant message ${assistantMessageId}.`);
-    // --- LOGGING END ---
     await ctx.scheduler.runAfter(0, internal.ai.chat, {
       messageHistory,
       assistantMessageId,

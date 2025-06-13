@@ -43,9 +43,6 @@ export const useMessageSummary = () => {
           threadId: convexThreadId,
           userGoogleApiKey,
         })
-      } else {
-        // For unauthenticated users, we skip generating summaries since chats are ephemeral
-        console.log("Skipping summary generation for unauthenticated user")
       }
     } catch (error: any) {
       console.error("Error generating title:", error)

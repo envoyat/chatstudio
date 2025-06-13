@@ -49,7 +49,6 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
 
     if (isAuthenticated) {
       if (!currentConvexThreadId) {
-        console.log("[ChatInput] No Convex thread ID found, creating a new one.")
         const newThreadId = await convexCreateThread({
           title: currentInput.slice(0, 50) + "...",
           uuid: threadId,
@@ -73,13 +72,8 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
         userApiKey: userApiKeyForModel || undefined,
       }
 
-      // --- LOGGING START ---
-      console.log("[ChatInput] Calling 'messages.send' mutation with payload:", payload)
-      // --- LOGGING END ---
-
       try {
         await sendMessage(payload)
-        console.log("[ChatInput] 'messages.send' mutation call succeeded.")
       } catch (error) {
         console.error("[ChatInput] 'messages.send' mutation call failed:", error)
       }

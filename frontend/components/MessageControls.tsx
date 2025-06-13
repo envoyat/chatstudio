@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Check, Copy, RefreshCcw, SquarePen } from "lucide-react"
@@ -48,23 +48,17 @@ export default function MessageControls({
     let inclusiveDelete: boolean;
 
     if (message.role === 'user') {
-      // --- THIS IS THE FIX ---
-      // We now treat "Rerun" just like "Edit".
-      // We delete the user message itself AND everything after it.
       contentToResend = message.content;
       timestampToDeleteFrom = message.createdAt.getTime();
-      inclusiveDelete = true; // This is the change. Delete the user message too.
+      inclusiveDelete = true;
     } else if (message.role === 'assistant') {
-      // --- FIX for Regenerating an AI Message ---
-      // Find the user message that came right before this assistant message.
       const currentMessageIndex = messages.findIndex(m => m.id === message.id);
       const previousMessage = messages[currentMessageIndex - 1];
 
       if (previousMessage && previousMessage.role === 'user') {
         contentToResend = previousMessage.content;
-        // We want to delete this assistant message and everything after it.
         timestampToDeleteFrom = message.createdAt.getTime();
-        inclusiveDelete = true; // DO delete the assistant message we're regenerating.
+        inclusiveDelete = true;
       } else {
         toast.error("Could not find the user prompt for this response.");
         return;
@@ -79,15 +73,12 @@ export default function MessageControls({
     }
     
     try {
-      // Step 1: Delete the correct trailing messages from the database.
       await deleteTrailingMessages({
         threadId: convexThreadId,
         fromCreatedAt: timestampToDeleteFrom,
         inclusive: inclusiveDelete,
       });
 
-      // Step 2: Send a new message with the determined content. This re-creates the
-      // user message and triggers the new AI response.
       const modelConfig = getModelConfig();
       const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) || undefined : undefined;
 
