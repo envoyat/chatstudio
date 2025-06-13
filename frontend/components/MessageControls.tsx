@@ -48,12 +48,12 @@ export default function MessageControls({
     let inclusiveDelete: boolean;
 
     if (message.role === 'user') {
-      // --- FIX for Rerunning a User Message ---
-      // We want to resend this exact message's content.
+      // --- THIS IS THE FIX ---
+      // We now treat "Rerun" just like "Edit".
+      // We delete the user message itself AND everything after it.
       contentToResend = message.content;
-      // We want to delete all messages AFTER this one.
       timestampToDeleteFrom = message.createdAt.getTime();
-      inclusiveDelete = false; // Do NOT delete the user message we're rerunning.
+      inclusiveDelete = true; // This is the change. Delete the user message too.
     } else if (message.role === 'assistant') {
       // --- FIX for Regenerating an AI Message ---
       // Find the user message that came right before this assistant message.
@@ -70,7 +70,6 @@ export default function MessageControls({
         return;
       }
     } else {
-      // Should not happen, but good to handle.
       return;
     }
 
@@ -87,8 +86,8 @@ export default function MessageControls({
         inclusive: inclusiveDelete,
       });
 
-      // Step 2: Send a new message with the determined content.
-      // This will trigger the AI response generation.
+      // Step 2: Send a new message with the determined content. This re-creates the
+      // user message and triggers the new AI response.
       const modelConfig = getModelConfig();
       const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) || undefined : undefined;
 
