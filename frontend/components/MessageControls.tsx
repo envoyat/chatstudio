@@ -1,103 +1,109 @@
 "use client"
 
-import { type Dispatch, type SetStateAction, useState } from "react"
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Check, Copy, RefreshCcw, SquarePen } from "lucide-react"
 import type { UIMessage } from "ai"
-import type { UseChatHelpers } from "@ai-sdk/react"
-import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
-import { useConvexAuth } from "convex/react"
-import { useDeleteTrailingMessages } from "@/lib/convex-hooks"
+import { useConvexAuth, useMutation } from "convex/react"
 import type { Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
+import { api } from "@/convex/_generated/api"
+import { useModelStore } from "../stores/ModelStore"
+import { useAPIKeyStore } from "../stores/APIKeyStore"
 
 interface MessageControlsProps {
-  threadId: string
-  message: UIMessage
-  setMessages: UseChatHelpers["setMessages"]
-  content: string
-  setMode?: Dispatch<SetStateAction<"view" | "edit">>
-  reload: UseChatHelpers["reload"]
-  stop: UseChatHelpers["stop"]
-  convexThreadId: Id<"threads"> | null
-  convexMessageId: Id<"messages">
+  message: UIMessage;
+  messages: UIMessage[]; // The full list of messages in the chat
+  setMode: (mode: "view" | "edit") => void;
+  convexThreadId: Id<"threads"> | null;
 }
 
 export default function MessageControls({
-  threadId,
   message,
-  setMessages,
-  content,
+  messages,
   setMode,
-  reload,
-  stop,
   convexThreadId,
-  convexMessageId,
 }: MessageControlsProps) {
   const [copied, setCopied] = useState(false)
-  const hasRequiredKeys = useAPIKeyStore((state) => state.hasRequiredKeys())
   const { isAuthenticated } = useConvexAuth()
-  const deleteTrailingMessagesMutation = useDeleteTrailingMessages()
+  const deleteTrailingMessages = useMutation(api.messages.deleteTrailing)
+  const sendMessage = useMutation(api.messages.send)
+  
+  const { selectedModel } = useModelStore()
+  const { hasUserKey, getKey } = useAPIKeyStore()
+  const { getModelConfig } = useModelStore()
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(content)
+    navigator.clipboard.writeText(message.content)
     setCopied(true)
-    setTimeout(() => {
-      setCopied(false)
-    }, 2000)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const handleRegenerate = async () => {
-    if (!hasRequiredKeys) {
-      toast.error("API keys are required to regenerate responses.")
-      return
-    }
+    if (!isAuthenticated || !convexThreadId || !message.createdAt) return;
 
-    if (!isAuthenticated || !convexThreadId || !convexMessageId) {
-      toast.error("Cannot regenerate for unsaved or unauthenticated chats.")
-      return
-    }
+    let contentToResend: string | null = null;
+    let timestampToDeleteFrom: number;
+    let inclusiveDelete: boolean;
 
-    if (!message.createdAt) {
-      toast.error("Cannot regenerate message without creation timestamp.")
-      return
-    }
+    if (message.role === 'user') {
+      // --- FIX for Rerunning a User Message ---
+      // We want to resend this exact message's content.
+      contentToResend = message.content;
+      // We want to delete all messages AFTER this one.
+      timestampToDeleteFrom = message.createdAt.getTime();
+      inclusiveDelete = false; // Do NOT delete the user message we're rerunning.
+    } else if (message.role === 'assistant') {
+      // --- FIX for Regenerating an AI Message ---
+      // Find the user message that came right before this assistant message.
+      const currentMessageIndex = messages.findIndex(m => m.id === message.id);
+      const previousMessage = messages[currentMessageIndex - 1];
 
-    try {
-      stop() // Stop any ongoing streaming
-
-      const fromCreatedAt = message.createdAt.getTime()
-      
-      if (message.role === "user") {
-        await deleteTrailingMessagesMutation({
-          threadId: convexThreadId,
-          fromCreatedAt: fromCreatedAt,
-          inclusive: false, // Delete messages *after* this user message
-        })
-
-        setMessages((prevMessages) => {
-          const userMessageIndex = prevMessages.findIndex((m) => m.id === message.id)
-          return userMessageIndex !== -1 ? prevMessages.slice(0, userMessageIndex + 1) : prevMessages
-        })
-
-      } else if (message.role === "assistant") {
-        await deleteTrailingMessagesMutation({
-          threadId: convexThreadId,
-          fromCreatedAt: fromCreatedAt,
-          inclusive: true, // Delete this assistant message and subsequent ones
-        })
-
-        setMessages((prevMessages) => {
-          const assistantMessageIndex = prevMessages.findIndex((m) => m.id === message.id)
-          return assistantMessageIndex !== -1 ? prevMessages.slice(0, assistantMessageIndex) : prevMessages
-        })
+      if (previousMessage && previousMessage.role === 'user') {
+        contentToResend = previousMessage.content;
+        // We want to delete this assistant message and everything after it.
+        timestampToDeleteFrom = message.createdAt.getTime();
+        inclusiveDelete = true; // DO delete the assistant message we're regenerating.
+      } else {
+        toast.error("Could not find the user prompt for this response.");
+        return;
       }
-      
-      reload() // Trigger AI SDK to regenerate
+    } else {
+      // Should not happen, but good to handle.
+      return;
+    }
+
+    if (contentToResend === null) {
+        toast.error("Could not determine which message to rerun.");
+        return;
+    }
+    
+    try {
+      // Step 1: Delete the correct trailing messages from the database.
+      await deleteTrailingMessages({
+        threadId: convexThreadId,
+        fromCreatedAt: timestampToDeleteFrom,
+        inclusive: inclusiveDelete,
+      });
+
+      // Step 2: Send a new message with the determined content.
+      // This will trigger the AI response generation.
+      const modelConfig = getModelConfig();
+      const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) || undefined : undefined;
+
+      await sendMessage({
+        threadId: convexThreadId,
+        content: contentToResend,
+        model: selectedModel,
+        userApiKey: userApiKeyForModel,
+      });
+
+      toast.success("Regenerating response...");
+
     } catch (error) {
-      console.error("Failed to regenerate message:", error)
-      toast.error("Failed to regenerate message. Please try again.")
+      console.error("Failed to regenerate response:", error);
+      toast.error("Failed to regenerate response.");
     }
   }
 
@@ -107,16 +113,27 @@ export default function MessageControls({
         "absolute mt-5 right-2": message.role === "user",
       })}
     >
-      <Button variant="ghost" size="icon" onClick={handleCopy}>
+      <Button variant="ghost" size="icon" onClick={handleCopy} title="Copy">
         {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
       </Button>
-      {setMode && hasRequiredKeys && isAuthenticated && (
-        <Button variant="ghost" size="icon" onClick={() => setMode("edit")}>
+      
+      {/* Only show Edit button for user messages */}
+      {message.role === "user" && isAuthenticated && (
+        <Button variant="ghost" size="icon" onClick={() => setMode("edit")} title="Edit">
           <SquarePen className="w-4 h-4" />
         </Button>
       )}
-      {hasRequiredKeys && isAuthenticated && (
-        <Button variant="ghost" size="icon" onClick={handleRegenerate}>
+
+      {/* Rerun from a user message. Re-prompts the AI with the same content. */}
+      {message.role === "user" && isAuthenticated && (
+        <Button variant="ghost" size="icon" onClick={handleRegenerate} title="Rerun">
+          <RefreshCcw className="w-4 h-4" />
+        </Button>
+      )}
+
+       {/* Regenerate an assistant message. Deletes it and reruns the previous prompt. */}
+       {message.role === "assistant" && isAuthenticated && (
+        <Button variant="ghost" size="icon" onClick={handleRegenerate} title="Regenerate">
           <RefreshCcw className="w-4 h-4" />
         </Button>
       )}

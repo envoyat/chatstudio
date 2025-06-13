@@ -20,6 +20,7 @@ function PureMessages({
         <PreviewMessage
           key={message.id}
           message={message}
+          messages={messages}
           convexThreadId={convexThreadId}
         />
       ))}
