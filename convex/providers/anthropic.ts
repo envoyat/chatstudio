@@ -4,7 +4,7 @@ import type { CoreMessage } from "ai";
 import { MESSAGE_ROLES } from "../constants";
 
 // Helper to format messages for Anthropic's SDK
-const formatMessages = (messages: CoreMessage[]) => {
+export const formatMessages = (messages: CoreMessage[]) => {
   return messages
     .filter(
       (msg) =>
@@ -35,4 +35,7 @@ export async function* stream(
       yield chunk.delta.text;
     }
   }
-} 
+}
+
+// Export Anthropic for use in tools.ts
+export { Anthropic }; 

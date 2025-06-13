@@ -3,18 +3,18 @@ import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
-import type { CoreMessage, ToolCallPart, ToolResultPart } from "ai";
+import type { CoreMessage } from "ai";
 
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
 import { MESSAGE_ROLES } from "./constants";
+import { ToolCallingProvider, getAvailableTools } from "./tools";
 
 // Import the stream functions from our new providers directory
 import * as openai from "./providers/openai";
 import * as google from "./providers/google";
 import * as anthropic from "./providers/anthropic";
 import * as openrouter from "./providers/openrouter";
-import OpenAI from "openai";
 
 const providerStreamers = {
   openai: openai.stream,
@@ -44,23 +44,7 @@ type ChatParams = {
   isWebSearchEnabled?: boolean;
 };
 
-const webSearchTool = {
-  type: "function" as const,
-  function: {
-    name: "web_search",
-    description: "Search the web for information. Use this to answer questions about recent events or specific facts.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "The search query to use. Be specific and concise.",
-        },
-      },
-      required: ["query"],
-    },
-  },
-};
+
 
 // --- generateTitle Internal Action ---
 // This action generates a title/summary for a message and schedules database updates.
@@ -154,94 +138,62 @@ export const chat = internalAction({
       let apiKey = userApiKey || getApiKeyFromConvexEnv(provider);
       if (!apiKey) throw new Error(`API key for ${provider} is required.`);
       
-      const tools = isWebSearchEnabled ? [webSearchTool] : undefined;
+      const tools = getAvailableTools(isWebSearchEnabled);
       
-      // --- Tool-Calling Logic for OpenAI provider ---
-      if (tools && (provider === 'openai' || provider === 'openrouter')) {
-        const oai = provider === 'openrouter' 
-          ? new OpenAI({ apiKey, baseURL: "https://openrouter.ai/api/v1" })
-          : new OpenAI({ apiKey });
-
-        const openAIMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = messageHistory
-          .map(msg => {
-            // This logic needs to be more robust for multi-turn tool calls.
-            // For now, we'll just map the basic roles.
-            if (msg.role === 'user' || msg.role === 'assistant' || msg.role === 'system') {
-              return { role: msg.role, content: msg.content };
-            }
-            return null;
-          })
-          .filter(Boolean) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+      // Use the new tool calling abstraction if tools are enabled
+      if (tools.length > 0) {
+        const toolProvider = new ToolCallingProvider(provider, apiKey, modelConfig.modelId);
         
-        const initialResponse = await oai.chat.completions.create({
-          model: modelConfig.modelId,
-          messages: openAIMessages,
-          tools: tools,
-          tool_choice: "auto",
-        });
+        const messagesForSdk: CoreMessage[] = messageHistory.map(({ content, role }) => ({
+          role: role as "user" | "assistant" | "system",
+          content,
+        }));
 
-        const assistantResponse = initialResponse.choices[0].message;
-
-        if (assistantResponse.tool_calls) {
-          await ctx.runMutation(internal.messages.update, {
-            messageId: assistantMessageId,
-            content: "", // Placeholder content
-            toolCalls: assistantResponse.tool_calls.map(tc => ({
-                name: tc.function.name,
-                args: tc.function.arguments,
-            })),
-          });
-          
-          const toolMessages: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = await Promise.all(
-            assistantResponse.tool_calls.map(async (toolCall) => {
-              if (toolCall.function.name === 'web_search') {
-                  const args = JSON.parse(toolCall.function.arguments);
-                  const searchResult = await ctx.runAction(internal.tools.webSearch.run, { query: args.query });
-                  return {
-                      role: 'tool',
-                      content: searchResult,
-                      tool_call_id: toolCall.id,
-                  };
-              }
-              return { 
-                role: 'tool',
-                content: "Tool not found", 
-                tool_call_id: toolCall.id 
-              };
-            })
-          );
-
-          const messagesForFinalCall = [
-            ...openAIMessages,
-            assistantResponse,
-            ...toolMessages,
-          ];
-
-          const finalStream = await oai.chat.completions.create({
-              model: modelConfig.modelId,
-              messages: messagesForFinalCall,
-              stream: true,
-          });
-
-          let body = "";
-          for await (const part of finalStream) {
-              const delta = part.choices[0]?.delta?.content;
-              if (delta) {
-                  body += delta;
-                  await ctx.runMutation(internal.messages.update, { messageId: assistantMessageId, content: body, toolCalls: undefined });
-              }
+        // Stream with tools
+        let body = "";
+        let toolCalls: any[] = [];
+        
+        for await (const chunk of toolProvider.streamWithTools(
+          messagesForSdk,
+          tools,
+          async (toolCall) => {
+            if (toolCall.name === 'web_search') {
+              const searchResult = await ctx.runAction(internal.tools.webSearch.run, { 
+                query: toolCall.args.query 
+              });
+              return searchResult;
+            }
+            return "Tool not found";
           }
-          await ctx.runMutation(internal.messages.finalise, { messageId: assistantMessageId, content: body });
-        } else {
-          await ctx.runMutation(internal.messages.finalise, {
-            messageId: assistantMessageId,
-            content: assistantResponse.content || "Sorry, I couldn't generate a response.",
-          });
+        )) {
+          if (chunk.type === "text") {
+            body += chunk.content;
+            await ctx.runMutation(internal.messages.update, {
+              messageId: assistantMessageId,
+              content: body,
+            });
+          } else if (chunk.type === "tool_call" && chunk.toolCall) {
+            toolCalls.push({
+              name: chunk.toolCall.name,
+              args: JSON.stringify(chunk.toolCall.args),
+            });
+            await ctx.runMutation(internal.messages.update, {
+              messageId: assistantMessageId,
+              content: body,
+              toolCalls: toolCalls,
+            });
+          }
         }
+        
+        await ctx.runMutation(internal.messages.finalise, {
+          messageId: assistantMessageId,
+          content: body,
+        });
+        
         return null;
       }
       
-      // --- Original Streaming Logic (if no tools or for other providers) ---
+      // --- Original Streaming Logic (if no tools) ---
       const messagesForSdk: CoreMessage[] = messageHistory.map(({ content, role }) => ({
         role: role as "user" | "assistant" | "system",
         content,

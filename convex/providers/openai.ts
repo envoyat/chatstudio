@@ -20,4 +20,7 @@ export async function* stream(
       yield delta;
     }
   }
-} 
+}
+
+// Export OpenAI for use in tools.ts
+export { OpenAI }; 
