@@ -4,7 +4,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 
 // Thread hooks
 export function useThreads() {
-  return useQuery(api.threads.list);
+  return useQuery(api.threads.listWithLastMessage);
 }
 
 export function useThread(threadId: Id<"threads"> | undefined) {
@@ -38,8 +38,8 @@ export function useMessagesByUuid(uuid: string | undefined) {
   return useQuery(api.messages.list, threadId ? { threadId } : "skip");
 }
 
-export function useCreateMessage() {
-  return useMutation(api.messages.create);
+export function useSendMessage() {
+  return useMutation(api.messages.send);
 }
 
 export function useDeleteTrailingMessages() {

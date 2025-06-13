@@ -54,7 +54,6 @@ export default function Home() {
     )
   }
 
-  // For authenticated users, threadId will be managed by Convex when messages are saved
-  // For unauthenticated users, use the UUID for the session only
-  return <Chat threadId={threadId} initialMessages={[]} />
+  // The Chat component now handles all message loading internally using the persistent reactivity pattern
+  return <Chat threadId={threadId} />
 }

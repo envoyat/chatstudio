@@ -1,112 +1,86 @@
 "use client"
 
-// Removed local storage imports
-import { type UseChatHelpers } from "@ai-sdk/react"
 import { useState } from "react"
 import type { UIMessage } from "ai"
 import type { Dispatch, SetStateAction } from "react"
-import { v4 as uuidv4 } from "uuid"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
-import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { toast } from "sonner"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { useConvexAuth } from "convex/react" // Import useConvexAuth
-import type { Id } from "@/convex/_generated/dataModel"; // Import Convex Id type
-import { useMessageSummary } from "@/frontend/hooks/useMessageSummary"
-import { useDeleteTrailingMessages, useCreateMessage } from "@/lib/convex-hooks"
+import type { Id } from "@/convex/_generated/dataModel"
+import { useModelStore } from "../stores/ModelStore"
+import { useAPIKeyStore } from "../stores/APIKeyStore"
+import { useMemo } from "react"
 
 export default function MessageEditor({
-  threadId, // This is the UUID from the URL
   message,
-  content,
-  setMessages,
-  reload,
   setMode,
-  stop,
   convexThreadId,
-  convexMessageId,
 }: {
-  threadId: string
   message: UIMessage
-  content: string
-  setMessages: UseChatHelpers["setMessages"]
   setMode: Dispatch<SetStateAction<"view" | "edit">>
-  reload: UseChatHelpers["reload"]
-  stop: UseChatHelpers["stop"]
   convexThreadId: Id<"threads"> | null
-  convexMessageId: Id<"messages">
 }) {
-  const [draftContent, setDraftContent] = useState(content)
-  const getKey = useAPIKeyStore((state) => state.getKey)
-  const hasUserKey = useAPIKeyStore((state) => state.hasUserKey)
-  const { isAuthenticated } = useConvexAuth(); // Get authentication status
-  const { complete } = useMessageSummary(); // Hook for message summary
-  const deleteTrailingMessages = useDeleteTrailingMessages();
-  const createMessage = useCreateMessage();
+  const [draftContent, setDraftContent] = useState(message.content)
+  const deleteTrailingMessages = useMutation(api.messages.deleteTrailing)
+  const sendMessage = useMutation(api.messages.send)
+  
+  const { selectedModel } = useModelStore();
+  const { hasUserKey, getKey } = useAPIKeyStore();
 
-  const handleSave = async () => {
-    if (!isAuthenticated || !convexThreadId) {
-      toast.error("Cannot edit messages in unauthenticated chats.")
-      return
-    }
+  const modelConfig = useMemo(() => {
+    return { provider: useModelStore.getState().getModelConfig().provider };
+  }, [selectedModel]);
 
-    if (!message.createdAt) {
-      toast.error("Cannot edit message without creation timestamp.")
-      return
+  const handleSaveAndResubmit = async () => {
+    if (!convexThreadId || !message.createdAt) {
+      toast.error("Cannot edit this message.");
+      return;
     }
 
     try {
-      stop() // Stop any ongoing streaming if user edits
-
-      // Delete all messages from this point forward (inclusive)
+      // Delete this message and all subsequent messages.
       await deleteTrailingMessages({
         threadId: convexThreadId,
         fromCreatedAt: message.createdAt.getTime(),
-        inclusive: true,
+        inclusive: true, // Include the message being edited
       })
 
-      // Create the new edited message in Convex
-      await createMessage({
+      // Send the new, edited message, which will trigger a new AI response.
+      const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) || undefined : undefined;
+      await sendMessage({
         threadId: convexThreadId,
         content: draftContent,
-        role: "user",
-        parts: [{ type: "text", text: draftContent }],
+        model: selectedModel,
+        userApiKey: userApiKeyForModel,
       })
 
-      // Update UI messages (remove the edited message and all after it)
-      setMessages((messages) => {
-        const index = messages.findIndex((m) => m.id === message.id)
-        return index !== -1 ? messages.slice(0, index) : messages
-      })
+      setMode("view");
+      toast.success("Message updated and resubmitted.");
 
-      setMode("view")
-      
-      setTimeout(() => {
-        reload() // Reload chat to ensure consistency with DB
-      }, 0)
     } catch (error) {
-      console.error("Failed to save message:", error)
-      toast.error("Failed to save message")
+      console.error("Failed to edit message:", error);
+      toast.error("Failed to edit message.");
     }
   }
 
   return (
-    <div>
+    <div className="w-full">
       <Textarea
         value={draftContent}
         onChange={(e) => setDraftContent(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault()
-            handleSave()
+            handleSaveAndResubmit()
           }
         }}
+        className="text-sm"
       />
-      <div className="flex gap-2 mt-2">
-        <Button onClick={handleSave}>Save</Button>
-        <Button onClick={() => setMode("view")}>Cancel</Button>
+      <div className="flex justify-end gap-2 mt-2">
+        <Button size="sm" onClick={handleSaveAndResubmit}>Save & Resubmit</Button>
+        <Button size="sm" variant="ghost" onClick={() => setMode("view")}>Cancel</Button>
       </div>
     </div>
   )

@@ -1,11 +1,44 @@
-"use node"; // This must be at the top of the file to use Node.js runtime for @ai-sdk
-
+"use node";
 import { internalAction } from "./_generated/server";
-import { internal } from "./_generated/api"; // Import internal API for scheduling mutations
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { generateText } from "ai";
+import type { Doc } from "./_generated/dataModel";
+import type { CoreMessage } from "ai";
+
+import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
+import { MESSAGE_ROLES } from "./constants";
+
+// Import the stream functions from our new providers directory
+import * as openai from "./providers/openai";
+import * as google from "./providers/google";
+import * as anthropic from "./providers/anthropic";
+import * as openrouter from "./providers/openrouter";
+
+const providerStreamers = {
+  openai: openai.stream,
+  google: google.stream,
+  anthropic: anthropic.stream,
+  openrouter: openrouter.stream,
+};
+
+const messageValidator = v.object({
+  _id: v.id("messages"),
+  _creationTime: v.number(),
+  threadId: v.id("threads"),
+  role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
+  content: v.string(),
+  parts: v.optional(v.any()),
+  isComplete: v.optional(v.boolean()),
+  createdAt: v.number(),
+});
+
+type ChatParams = {
+  messageHistory: Doc<"messages">[];
+  assistantMessageId: Doc<"messages">["_id"];
+  model: string;
+  userApiKey?: string;
+};
 
 // --- generateTitle Internal Action ---
 // This action generates a title/summary for a message and schedules database updates.
@@ -22,17 +55,13 @@ export const generateTitle = internalAction({
     title: v.optional(v.string()),
   }),
   handler: async (ctx, args) => {
-    // Try user's API key first, then fallback to host API key
     let googleApiKey = args.userGoogleApiKey;
-    let keySource = "user";
     
     if (!googleApiKey) {
       googleApiKey = getApiKeyFromConvexEnv("google");
-      keySource = "host";
     }
 
     if (!googleApiKey) {
-      // Provide a more specific error message
       const errorMessage = args.userGoogleApiKey 
         ? "Both user and host Google API keys are missing. Please set HOST_GOOGLE_API_KEY in Convex environment variables."
         : "No Google API key available. Either provide a user API key or set HOST_GOOGLE_API_KEY in Convex environment variables.";
@@ -41,43 +70,100 @@ export const generateTitle = internalAction({
       throw new Error(errorMessage);
     }
 
-    console.log(`Using ${keySource} Google API key for title generation`);
-
-    const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
-
     try {
-      const { text: title } = await generateText({
-        model: google("gemini-2.0-flash-exp"), // Use a fast model for title generation
-        system: `
-          - you will generate a short title based on the first message a user begins a conversation with
-          - ensure it is not more than 80 characters long
-          - the title should be a summary of the user's message
-          - you should NOT answer the user's message, you should only generate a summary/title
-          - do not use quotes or colons
-        `,
-        prompt: args.prompt,
-      });
+      const stream = google.stream(googleApiKey, "gemini-2.0-flash", [
+        {
+          role: MESSAGE_ROLES.SYSTEM,
+          content: `
+            - You will generate a short title based on the first message a user begins a conversation with.
+            - The title should be no more than 10 words.
+            - Do not use quotes or colons.
+            - Do not answer the user's question, only generate a title.
+          `
+        },
+        {
+          role: MESSAGE_ROLES.USER,
+          content: args.prompt
+        }
+      ]);
 
-      // Schedule mutations to update the database
+      let title = "";
+      for await (const chunk of stream) {
+        title += chunk;
+      }
+
       if (args.isTitle) {
         await ctx.scheduler.runAfter(
           0,
-          internal.threads.internalUpdateTitle, // Call internal mutation
-          { threadId: args.threadId, title: title },
+          internal.threads.internalUpdateTitle,
+          { threadId: args.threadId, title: title.trim() },
         );
       }
       
       await ctx.scheduler.runAfter(
         0,
-        internal.messages.internalCreateSummary, // Call internal mutation
-        { threadId: args.threadId, messageId: args.messageId, content: title },
+        internal.messages.internalCreateSummary,
+        { threadId: args.threadId, messageId: args.messageId, content: title.trim() },
       );
 
-      // Return a success response (optional, but good practice for actions)
-      return { success: true, title };
+      return { success: true, title: title.trim() };
     } catch (error: any) {
       console.error("Failed to generate title:", error);
-      throw new Error(`Failed to generate title: ${error.message || 'Unknown error'}`);
+      return { success: false };
     }
+  },
+});
+
+export const chat = internalAction({
+  args: {
+    messageHistory: v.array(messageValidator),
+    assistantMessageId: v.id("messages"),
+    model: v.string(),
+    userApiKey: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { messageHistory, assistantMessageId, model, userApiKey }: ChatParams) => {
+    try {
+      const aiModelName = model as AIModel;
+      const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName];
+      const provider = modelConfig.provider;
+
+      let apiKey = userApiKey || getApiKeyFromConvexEnv(provider);
+      if (!apiKey) throw new Error(`API key for ${provider} is required.`);
+
+      const streamProvider = providerStreamers[provider];
+      if (!streamProvider) throw new Error(`No streamer implemented for provider: ${provider}`);
+
+      const messagesForSdk: CoreMessage[] = messageHistory.map(({ content, role }) => ({
+        role: role as "user" | "assistant" | "system",
+        content,
+      }));
+      
+      const stream = streamProvider(apiKey, modelConfig.modelId, messagesForSdk);
+
+      let body = "";
+      for await (const textPart of stream) {
+        body += textPart;
+        await ctx.runMutation(internal.messages.update, {
+          messageId: assistantMessageId,
+          content: body,
+        });
+      }
+      
+      await ctx.runMutation(internal.messages.finalise, {
+        messageId: assistantMessageId,
+        content: body,
+      });
+
+    } catch (e: any) {
+      const errorMessage = e.message || "An unknown error occurred";
+      console.error(`[ai.chat] ACTION FAILED: ${errorMessage}`, e);
+      await ctx.runMutation(internal.messages.finalise, {
+        messageId: assistantMessageId,
+        content: `Sorry, I ran into an error: ${errorMessage}`,
+      });
+    }
+
+    return null;
   },
 }); 

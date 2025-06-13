@@ -1,5 +1,5 @@
 {
-  "name": "my-v0-project",
+  "name": "chatstudio",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,7 +13,9 @@
     "@ai-sdk/google": "latest",
     "@ai-sdk/openai": "latest",
     "@ai-sdk/react": "latest",
+    "@anthropic-ai/sdk": "^0.54.0",
     "@clerk/nextjs": "^6.21.0",
+    "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "latest",
     "@openrouter/ai-sdk-provider": "latest",
     "@radix-ui/react-accordion": "1.2.2",
@@ -61,6 +63,7 @@
     "marked": "latest",
     "next": "15.2.4",
     "next-themes": "latest",
+    "openai": "^5.3.0",
     "prism-react-renderer": "^2.4.1",
     "react": "^19",
     "react-day-picker": "8.10.1",
