@@ -32,7 +32,7 @@ function PureMessage({
     <div role="article" className={cn("flex flex-col", message.role === "user" ? "items-end" : "items-start")}>
       <div
         className={cn(
-          "group relative px-4 py-3 rounded-xl max-w-[80%]",
+          "group relative px-4 py-3 rounded-xl w-full",
           message.role === "user" ? "bg-secondary border border-secondary-foreground/2" : ""
         )}
       >
