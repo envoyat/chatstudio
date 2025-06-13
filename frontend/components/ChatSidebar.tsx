@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Link, useNavigate, useLocation } from "react-router-dom"
-import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn } from "lucide-react"
+import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { memo } from "react"
 import { Authenticated, Unauthenticated, useConvexAuth } from "convex/react"
@@ -24,20 +24,28 @@ import { convertConvexThread } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
 import { ROUTES } from "@/frontend/constants/routes"
 
+// A simple spinner component for the sidebar.
+const StreamingSpinner = () => (
+  <Loader2 size={16} className="animate-spin text-primary" />
+);
+
 export default function ChatSidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const { state, toggle } = useSidebar()
   const { isAuthenticated } = useConvexAuth()
 
-  // For authenticated users, use Convex
+  // Use the updated hook which now includes last message info.
   const convexThreads = useThreads()
   const deleteThreadMutation = useDeleteThread()
 
-  // Convert Convex threads to app format
+  // Convert Convex threads to app format - but keep the original data for streaming check
   const threads = React.useMemo(() => {
     if (!isAuthenticated || !convexThreads) return []
-    return convexThreads.map(convertConvexThread)
+    return convexThreads.map(thread => ({
+      ...convertConvexThread(thread),
+      lastMessage: thread.lastMessage // Keep the lastMessage for streaming check
+    }))
   }, [convexThreads, isAuthenticated])
 
   // Extract thread ID from various possible paths
@@ -75,6 +83,9 @@ export default function ChatSidebar() {
               <SidebarGroupContent>
                 <SidebarMenu className="space-y-1">
                   {threads?.map((thread) => {
+                    // Logic for streaming state
+                    const isStreaming = thread.lastMessage?.role === 'assistant' && thread.lastMessage.isComplete === false;
+                    
                     return (
                       <SidebarMenuItem key={thread.id}>
                         <div
@@ -90,14 +101,22 @@ export default function ChatSidebar() {
                           }}
                         >
                           <span className="truncate text-sm font-medium flex-1">{thread.title}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="opacity-0 group-hover/thread:opacity-100 transition-opacity ml-2 h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                            onClick={(event) => handleDeleteThread(thread._id, event)}
-                          >
-                            <X size={14} />
-                          </Button>
+                          
+                          {/* Conditional spinner */}
+                          {isStreaming ? (
+                            <div className="flex items-center gap-2">
+                              <StreamingSpinner />
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="opacity-0 group-hover/thread:opacity-100 transition-opacity ml-2 h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                              onClick={(event) => handleDeleteThread(thread._id, event)}
+                            >
+                              <X size={14} />
+                            </Button>
+                          )}
                         </div>
                       </SidebarMenuItem>
                     )

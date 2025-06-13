@@ -4,7 +4,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 
 // Thread hooks
 export function useThreads() {
-  return useQuery(api.threads.list);
+  return useQuery(api.threads.listWithLastMessage);
 }
 
 export function useThread(threadId: Id<"threads"> | undefined) {

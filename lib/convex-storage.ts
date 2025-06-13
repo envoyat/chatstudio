@@ -8,6 +8,10 @@ export interface Thread {
   createdAt: Date;
   updatedAt: Date;
   lastMessageAt: Date;
+  lastMessage?: {
+    role: "user" | "assistant" | "system" | "data";
+    isComplete?: boolean;
+  } | null;
 }
 
 export interface DBMessage {
