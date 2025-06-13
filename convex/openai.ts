@@ -3,13 +3,21 @@ import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
-import { streamText } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { OpenAI } from "openai";
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
+
+// Define a precise validator for the message objects.
+const messageValidator = v.object({
+  _id: v.id("messages"),
+  _creationTime: v.number(),
+  threadId: v.id("threads"),
+  role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data")),
+  content: v.string(),
+  parts: v.optional(v.any()),
+  isComplete: v.optional(v.boolean()),
+  createdAt: v.number(),
+});
 
 type ChatParams = {
   messageHistory: Doc<"messages">[];
@@ -20,71 +28,51 @@ type ChatParams = {
 
 export const chat = internalAction({
   args: {
-    messageHistory: v.array(v.any()),
+    messageHistory: v.array(messageValidator),
     assistantMessageId: v.id("messages"),
     model: v.string(),
     userApiKey: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, { messageHistory, assistantMessageId, model, userApiKey }: ChatParams) => {
+    console.log(`[openai.chat] Action started for model: ${model}.`);
+
+    const aiModelName = model as AIModel;
+    const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName];
+
+    // Ensure we are using an OpenAI model for this test
+    if (modelConfig.provider !== "openai") {
+        const errorMsg = `This action is currently configured for OpenAI, but received model for provider: ${modelConfig.provider}`;
+        console.error(`[openai.chat] ACTION FAILED: ${errorMsg}`);
+        await ctx.runMutation(internal.messages.finalize, {
+            messageId: assistantMessageId,
+            content: `Configuration Error: ${errorMsg}`,
+        });
+        return null;
+    }
+
+    let apiKey = userApiKey;
+    if (!apiKey) {
+      apiKey = getApiKeyFromConvexEnv("openai"); // Specifically get the OpenAI key
+    }
+
+    if (!apiKey) {
+      const errorMsg = "OpenAI API key is missing. Please add it to your Convex environment variables.";
+      console.error(`[openai.chat] ACTION FAILED: ${errorMsg}`);
+      await ctx.runMutation(internal.messages.finalize, {
+        messageId: assistantMessageId,
+        content: `Configuration Error: ${errorMsg}`,
+      });
+      return null;
+    }
+
+    const openai = new OpenAI({ apiKey });
+
     try {
-      const aiModelName = model as AIModel;
-      const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName];
-
-      let apiKey = userApiKey;
-      if (!apiKey) {
-        apiKey = getApiKeyFromConvexEnv(modelConfig.provider);
-      }
-
-      if (!apiKey) {
-        throw new Error(`API key for ${modelConfig.provider} is required.`);
-      }
-
-      let aiClientModel;
-      switch (modelConfig.provider) {
-        case "google":
-          const google = createGoogleGenerativeAI({ apiKey });
-          aiClientModel = google(modelConfig.modelId);
-          break;
-        case "anthropic":
-          const anthropic = createAnthropic({ apiKey });
-          aiClientModel = anthropic(modelConfig.modelId);
-          break;
-        case "openai":
-          const openai = createOpenAI({ apiKey });
-          aiClientModel = openai(modelConfig.modelId);
-          break;
-        case "openrouter":
-          const openrouter = createOpenRouter({ apiKey });
-          aiClientModel = openrouter(modelConfig.modelId);
-          break;
-        default:
-          throw new Error(`Unsupported model provider: ${modelConfig.provider}`);
-      }
-
-      const { textStream } = await streamText({
-        model: aiClientModel,
-        system: `
-          You are Chat Studio, a knowledgeable AI companion designed to assist users with various questions and tasks.
-          
-          Your core principles:
-          - Provide accurate, helpful responses tailored to each user's needs
-          - Maintain a friendly, professional demeanor throughout conversations
-          - Foster engaging dialogue while staying focused on being useful
-          
-          Mathematical Expression Guidelines:
-          When working with mathematical content, format expressions using LaTeX notation:
-          
-          For inline mathematics: Use single dollar signs to wrap expressions like $x^2 + y^2 = z^2$
-          For block-level mathematics: Use double dollar signs and place on separate lines
-          
-          Keep math formatting consistent - avoid mixing different delimiter styles within the same response.
-          
-          Mathematical formatting examples:
-          • Inline usage: "The formula $a^2 + b^2 = c^2$ represents the Pythagorean theorem"
-          • Block format:
-          $$\\int_{0}^{\\infty} e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
-        `,
+      console.log(`[openai.chat] Creating stream with model: ${modelConfig.modelId}`);
+      const stream = await openai.chat.completions.create({
+        model: modelConfig.modelId, // Use the specific model ID, e.g., "gpt-4.1"
+        stream: true,
         messages: messageHistory.map(({ content, role }) => ({
           role: role as "user" | "assistant",
           content,
@@ -92,28 +80,44 @@ export const chat = internalAction({
       });
 
       let body = "";
-      for await (const textPart of textStream) {
-        body += textPart;
-        await ctx.runMutation(internal.messages.update, {
-          messageId: assistantMessageId,
-          content: body,
-        });
+      let chunkCount = 0;
+      for await (const part of stream) {
+        const delta = part.choices[0]?.delta?.content;
+        if (delta) {
+          body += delta;
+          chunkCount++;
+          // Update the message in the database with the new content
+          await ctx.runMutation(internal.messages.update, {
+            messageId: assistantMessageId,
+            content: body,
+          });
+        }
       }
 
-      // Finalize the message with the complete body and mark it as complete.
+      console.log(`[openai.chat] Stream finished after ${chunkCount} chunks. Finalizing message.`);
+      // Finalize the message with the complete body and mark it as complete
       await ctx.runMutation(internal.messages.finalize, {
         messageId: assistantMessageId,
         content: body,
       });
+
     } catch (e: any) {
-      const errorMessage = e.message || "An unknown error occurred";
-      console.error(`AI chat action failed: ${errorMessage}`);
+      let errorMessage = "An unknown error occurred";
+      if (e instanceof OpenAI.APIError) {
+        // Handle specific OpenAI API errors (e.g., invalid key, rate limits)
+        errorMessage = `OpenAI API Error: ${e.status} ${e.name} - ${e.message}`;
+      } else {
+        errorMessage = e.message || errorMessage;
+      }
+      
+      console.error(`[openai.chat] ACTION FAILED: ${errorMessage}`, e);
+      // Update the message in the UI with a helpful error
       await ctx.runMutation(internal.messages.finalize, {
         messageId: assistantMessageId,
         content: `Sorry, I ran into an error: ${errorMessage}`,
       });
     }
-
+    
     return null;
   },
 }); 

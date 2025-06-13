@@ -50,6 +50,7 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
 
     if (isAuthenticated) {
       if (!currentConvexThreadId) {
+        console.log("[ChatInput] No Convex thread ID found, creating a new one.")
         const newThreadId = await convexCreateThread({
           title: currentInput.slice(0, 50) + "...",
           uuid: threadId,
@@ -65,16 +66,26 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
 
       const modelConfig = getModelConfig()
       const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined
-
-      await sendMessage({
+      
+      const payload = {
         threadId: currentConvexThreadId,
         content: currentInput,
         model: selectedModel,
         userApiKey: userApiKeyForModel || undefined,
-      })
+      }
+
+      // --- LOGGING START ---
+      console.log("[ChatInput] Calling 'messages.send' mutation with payload:", payload)
+      // --- LOGGING END ---
+
+      try {
+        await sendMessage(payload)
+        console.log("[ChatInput] 'messages.send' mutation call succeeded.")
+      } catch (error) {
+        console.error("[ChatInput] 'messages.send' mutation call failed:", error)
+      }
     } else {
-      // Handle unauthenticated case if needed. For now, we assume this is called only when auth'd.
-      console.warn("Attempted to send message while unauthenticated.")
+      console.warn("[ChatInput] Attempted to send message while unauthenticated.")
     }
   }, [
     input, isDisabled, sendMessage, convexThreadId, onConvexThreadIdChange,
