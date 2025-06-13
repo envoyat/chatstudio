@@ -20,6 +20,7 @@ export default defineSchema({
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data")),
     parts: v.optional(v.any()), // UIMessage parts
     createdAt: v.number(),
+    isComplete: v.optional(v.boolean()), // ADDED: To track streaming status
   })
     .index("by_thread", ["threadId"])
     .index("by_thread_and_created", ["threadId", "createdAt"]),
