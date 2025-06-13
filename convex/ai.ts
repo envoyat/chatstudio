@@ -44,7 +44,48 @@ type ChatParams = {
   isWebSearchEnabled?: boolean;
 };
 
+// System prompt function that includes current date and web search instructions
+function createSystemPrompt(isWebSearchEnabled: boolean = false): CoreMessage {
+  const currentDate = new Date().toLocaleDateString('en-AU', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC'
+  });
+  
+  console.log(`[createSystemPrompt] Generated date: ${currentDate}`);
 
+  let systemContent = `Current Date: ${currentDate}
+
+You are a helpful AI assistant. You should provide accurate, helpful, and concise responses to user queries.
+
+Key Guidelines:
+- Always strive to be helpful, accurate, and informative
+- If you're unsure about something, acknowledge your uncertainty
+- Use clear, well-structured responses
+- Maintain a friendly and professional tone`;
+
+  if (isWebSearchEnabled) {
+    systemContent += `
+
+Web Search Instructions:
+- You have access to a web search tool that can help you find current information
+- Use web search when users ask about:
+  * Recent events, news, or current affairs
+  * Real-time data (stock prices, weather, sports scores)
+  * Specific facts that may have changed recently
+  * Information that requires up-to-date sources
+- When using web search, be specific and concise with your search queries
+- Always cite the source of web search information when presenting results
+- If web search returns no useful results, inform the user clearly`;
+  }
+
+  return {
+    role: MESSAGE_ROLES.SYSTEM as "system",
+    content: systemContent
+  };
+}
 
 // --- generateTitle Internal Action ---
 // This action generates a title/summary for a message and schedules database updates.
@@ -140,18 +181,29 @@ export const chat = internalAction({
       
       const tools = getAvailableTools(isWebSearchEnabled);
       
+      // Create system prompt and prepare messages
+      const systemPrompt = createSystemPrompt(isWebSearchEnabled);
+      console.log(`[ai.chat] System prompt created: ${typeof systemPrompt.content === 'string' ? systemPrompt.content.substring(0, 100) + '...' : 'Non-string content'}`);
+      
       // Use the new tool calling abstraction if tools are enabled
       if (tools.length > 0) {
         const toolProvider = new ToolCallingProvider(provider, apiKey, modelConfig.modelId);
         
-        const messagesForSdk: CoreMessage[] = messageHistory.map(({ content, role }) => ({
-          role: role as "user" | "assistant" | "system",
-          content,
-        }));
+        const messagesForSdk: CoreMessage[] = [
+          systemPrompt,
+          ...messageHistory.map(({ content, role }) => ({
+            role: role as "user" | "assistant" | "system",
+            content,
+          }))
+        ];
+        
+        console.log(`[ai.chat] Total messages for SDK: ${messagesForSdk.length}, first message role: ${messagesForSdk[0]?.role}`);
 
-        // Stream with tools
-        let body = "";
+        // Stream with tools - handle proper conversation flow
+        let initialMessageContent = "";
+        let finalMessageContent = "";
         let toolCalls: any[] = [];
+        let isAfterToolCall = false;
         
         for await (const chunk of toolProvider.streamWithTools(
           messagesForSdk,
@@ -167,19 +219,30 @@ export const chat = internalAction({
           }
         )) {
           if (chunk.type === "text") {
-            body += chunk.content;
-            await ctx.runMutation(internal.messages.update, {
-              messageId: assistantMessageId,
-              content: body,
-            });
+            if (!isAfterToolCall) {
+              // This is the initial message before tool calls
+              initialMessageContent += chunk.content;
+              await ctx.runMutation(internal.messages.update, {
+                messageId: assistantMessageId,
+                content: initialMessageContent,
+              });
+            } else {
+              // This is the final response after tool calls
+              finalMessageContent += chunk.content;
+              await ctx.runMutation(internal.messages.update, {
+                messageId: assistantMessageId,
+                content: initialMessageContent + "\n\n" + finalMessageContent,
+              });
+            }
           } else if (chunk.type === "tool_call" && chunk.toolCall) {
+            isAfterToolCall = true;
             toolCalls.push({
               name: chunk.toolCall.name,
               args: JSON.stringify(chunk.toolCall.args),
             });
             await ctx.runMutation(internal.messages.update, {
               messageId: assistantMessageId,
-              content: body,
+              content: initialMessageContent,
               toolCalls: toolCalls,
             });
           }
@@ -187,17 +250,22 @@ export const chat = internalAction({
         
         await ctx.runMutation(internal.messages.finalise, {
           messageId: assistantMessageId,
-          content: body,
+          content: initialMessageContent + (finalMessageContent ? "\n\n" + finalMessageContent : ""),
         });
         
         return null;
       }
       
       // --- Original Streaming Logic (if no tools) ---
-      const messagesForSdk: CoreMessage[] = messageHistory.map(({ content, role }) => ({
-        role: role as "user" | "assistant" | "system",
-        content,
-      }));
+      const messagesForSdk: CoreMessage[] = [
+        systemPrompt,
+        ...messageHistory.map(({ content, role }) => ({
+          role: role as "user" | "assistant" | "system",
+          content,
+        }))
+      ];
+
+      console.log(`[ai.chat] Fallback streaming - Total messages: ${messagesForSdk.length}, first message role: ${messagesForSdk[0]?.role}`);
 
       const streamProvider = providerStreamers[provider];
       if (!streamProvider) throw new Error(`No streamer implemented for provider: ${provider}`);

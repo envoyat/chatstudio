@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
-import { Settings2, ChevronRight, X } from "lucide-react"
+import { Settings2, ChevronRight, X, Search } from "lucide-react"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getModelTokenLimit } from "@/lib/token-limits"
@@ -21,7 +21,9 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
     temperature,
     tokenCount,
     maxTokens,
+    isWebSearchEnabled,
     setTemperature,
+    toggleWebSearch,
   } = useChatRunSettingsStore()
   
   const selectedModel = useModelStore((state) => state.selectedModel)
@@ -133,6 +135,30 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
                   </p>
                 )}
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Web Search Toggle */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Tools</h3>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Web Search</span>
+                </div>
+                <Button
+                  variant={isWebSearchEnabled ? "default" : "outline"}
+                  size="sm"
+                  onClick={toggleWebSearch}
+                  className="h-7"
+                >
+                  {isWebSearchEnabled ? "ON" : "OFF"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Enable web search to get up-to-date information about recent events, current affairs, and real-time data.
+              </p>
             </div>
 
             <Separator />
