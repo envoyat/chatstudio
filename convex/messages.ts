@@ -13,7 +13,7 @@ export const send = mutation({
   handler: async (ctx, { threadId, content, model, userApiKey }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authorized to send messages");
+      throw new Error("Not authorised to send messages");
     }
 
     // 1. Insert the user's message into the database.
@@ -106,8 +106,8 @@ export const update = internalMutation({
   },
 });
 
-// NEW: Internal mutation to finalize the message and mark it as complete.
-export const finalize = internalMutation({
+// NEW: Internal mutation to finalise the message and mark it as complete.
+export const finalise = internalMutation({
   args: { messageId: v.id("messages"), content: v.string() },
   returns: v.null(),
   handler: async (ctx, { messageId, content }) => {
@@ -131,7 +131,7 @@ export const deleteTrailing = mutation({
 
     const thread = await ctx.db.get(args.threadId);
     if (!thread || thread.userId !== identity.subject) {
-      throw new Error("Not authorized to delete messages from this thread");
+      throw new Error("Not authorised to delete messages from this thread");
     }
 
     const inclusive = args.inclusive ?? true;

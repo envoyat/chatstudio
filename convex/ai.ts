@@ -149,7 +149,7 @@ export const chat = internalAction({
         });
       }
       
-      await ctx.runMutation(internal.messages.finalize, {
+      await ctx.runMutation(internal.messages.finalise, {
         messageId: assistantMessageId,
         content: body,
       });
@@ -157,7 +157,7 @@ export const chat = internalAction({
     } catch (e: any) {
       const errorMessage = e.message || "An unknown error occurred";
       console.error(`[ai.chat] ACTION FAILED: ${errorMessage}`, e);
-      await ctx.runMutation(internal.messages.finalize, {
+      await ctx.runMutation(internal.messages.finalise, {
         messageId: assistantMessageId,
         content: `Sorry, I ran into an error: ${errorMessage}`,
       });

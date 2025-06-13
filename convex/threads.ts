@@ -166,7 +166,7 @@ export const update = mutation({
     }
 
     if (thread.userId !== identity.subject) {
-      throw new Error("Not authorized to update this thread");
+      throw new Error("Not authorised to update this thread");
     }
 
     const updates: any = {
@@ -203,7 +203,7 @@ export const remove = mutation({
     }
 
     if (thread.userId !== identity.subject) {
-      throw new Error("Not authorized to delete this thread");
+      throw new Error("Not authorised to delete this thread");
     }
 
     // Delete all messages in the thread

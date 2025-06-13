@@ -50,11 +50,11 @@ Here is the step-by-step flow when a user sends a message to the AI:
     *   The React component re-renders with the slightly longer `content`, making the text appear to stream into the UI.
 
 7.  **Backend: Finalization**
-    *   Once the AI provider's stream is complete, the `ai.chat` action makes one final mutation call to `messages.finalize`.
+    *   Once the AI provider's stream is complete, the `ai.chat` action makes one final mutation call to `messages.finalise`.
     *   This final mutation updates the message with the full content and, crucially, sets `isComplete: true`.
 
 8.  **Client: Final State**
-    *   The client receives the final update from the `finalize` mutation.
+    *   The client receives the final update from the `finalise` mutation.
     *   Seeing `isComplete: true`, it removes the loading indicator and considers the AI's turn finished. The sidebar spinner disappears.
 
 ## Why This Pattern is Powerful
