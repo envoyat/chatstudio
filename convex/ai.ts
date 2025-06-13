@@ -152,29 +152,29 @@ export const chat = internalAction({
 
       let apiKey = userApiKey || getApiKeyFromConvexEnv(provider);
       if (!apiKey) throw new Error(`API key for ${provider} is required.`);
-
-      const messagesForSdk: CoreMessage[] = messageHistory
-        .filter(msg => msg.role !== 'tool') // Filter out tool messages for now
-        .map(({ content, role, toolCalls }) => {
-          if (role === "assistant" && toolCalls) {
-            return {
-              role: "assistant" as const,
-              content: content,
-              tool_calls: toolCalls as any,
-            };
-          }
-          return { role: role as "user" | "assistant" | "system", content };
-        });
       
       const tools = isWebSearchEnabled ? [webSearchTool] : undefined;
+      
+      // --- Tool-Calling Logic for OpenAI provider ---
+      if (tools && (provider === 'openai' || provider === 'openrouter')) {
+        const oai = provider === 'openrouter' 
+          ? new OpenAI({ apiKey, baseURL: "https://openrouter.ai/api/v1" })
+          : new OpenAI({ apiKey });
 
-      // --- Tool-Calling Logic ---
-      if (tools) {
-        const oai = new OpenAI({ apiKey }); // Assuming OpenAI for simplicity, this needs to be adapted for other providers.
+        const openAIMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = messageHistory
+          .map(msg => {
+            // This logic needs to be more robust for multi-turn tool calls.
+            // For now, we'll just map the basic roles.
+            if (msg.role === 'user' || msg.role === 'assistant' || msg.role === 'system') {
+              return { role: msg.role, content: msg.content };
+            }
+            return null;
+          })
+          .filter(Boolean) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
         
         const initialResponse = await oai.chat.completions.create({
           model: modelConfig.modelId,
-          messages: messagesForSdk as any,
+          messages: openAIMessages,
           tools: tools,
           tool_choice: "auto",
         });
@@ -182,7 +182,6 @@ export const chat = internalAction({
         const assistantResponse = initialResponse.choices[0].message;
 
         if (assistantResponse.tool_calls) {
-          // Model wants to use a tool
           await ctx.runMutation(internal.messages.update, {
             messageId: assistantMessageId,
             content: "", // Placeholder content
@@ -192,30 +191,34 @@ export const chat = internalAction({
             })),
           });
           
-          const toolResults = await Promise.all(assistantResponse.tool_calls.map(async (toolCall) => {
-            if (toolCall.function.name === 'web_search') {
-                const args = JSON.parse(toolCall.function.arguments);
-                const searchResult = await ctx.runAction(internal.tools.webSearch.run, { query: args.query });
-                return {
-                    role: 'tool' as const,
-                    content: searchResult,
-                    tool_call_id: toolCall.id,
-                };
-            }
-            return { 
-              role: 'tool' as const, 
-              content: "Tool not found", 
-              tool_call_id: toolCall.id 
-            };
-          }));
+          const toolMessages: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = await Promise.all(
+            assistantResponse.tool_calls.map(async (toolCall) => {
+              if (toolCall.function.name === 'web_search') {
+                  const args = JSON.parse(toolCall.function.arguments);
+                  const searchResult = await ctx.runAction(internal.tools.webSearch.run, { query: args.query });
+                  return {
+                      role: 'tool',
+                      content: searchResult,
+                      tool_call_id: toolCall.id,
+                  };
+              }
+              return { 
+                role: 'tool',
+                content: "Tool not found", 
+                tool_call_id: toolCall.id 
+              };
+            })
+          );
 
-          messagesForSdk.push(assistantResponse as CoreMessage);
-          toolResults.forEach(result => messagesForSdk.push(result as CoreMessage));
+          const messagesForFinalCall = [
+            ...openAIMessages,
+            assistantResponse,
+            ...toolMessages,
+          ];
 
-          // Call model again with tool results
           const finalStream = await oai.chat.completions.create({
               model: modelConfig.modelId,
-              messages: messagesForSdk as any,
+              messages: messagesForFinalCall,
               stream: true,
           });
 
@@ -224,13 +227,11 @@ export const chat = internalAction({
               const delta = part.choices[0]?.delta?.content;
               if (delta) {
                   body += delta;
-                  await ctx.runMutation(internal.messages.update, { messageId: assistantMessageId, content: body });
+                  await ctx.runMutation(internal.messages.update, { messageId: assistantMessageId, content: body, toolCalls: undefined });
               }
           }
           await ctx.runMutation(internal.messages.finalize, { messageId: assistantMessageId, content: body });
-
         } else {
-          // No tool call, just finalize with the content
           await ctx.runMutation(internal.messages.finalize, {
             messageId: assistantMessageId,
             content: assistantResponse.content || "Sorry, I couldn't generate a response.",
@@ -239,7 +240,12 @@ export const chat = internalAction({
         return null;
       }
       
-      // --- Original Streaming Logic (if no tools) ---
+      // --- Original Streaming Logic (if no tools or for other providers) ---
+      const messagesForSdk: CoreMessage[] = messageHistory.map(({ content, role }) => ({
+        role: role as "user" | "assistant" | "system",
+        content,
+      }));
+
       const streamProvider = providerStreamers[provider];
       if (!streamProvider) throw new Error(`No streamer implemented for provider: ${provider}`);
       const stream = streamProvider(apiKey, modelConfig.modelId, messagesForSdk);

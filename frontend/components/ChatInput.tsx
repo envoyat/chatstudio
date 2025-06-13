@@ -123,7 +123,7 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
                   <ChatModelDropdown />
                   <Button
                     onClick={toggleWebSearch}
-                    variant={isWebSearchEnabled ? "secondary" : "ghost"}
+                    variant={isWebSearchEnabled ? "default" : "ghost"}
                     size="sm"
                     className="h-8 px-2"
                     aria-label="Toggle web search"

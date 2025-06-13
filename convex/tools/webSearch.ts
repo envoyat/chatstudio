@@ -16,12 +16,11 @@ export const run = internalAction({
         "TAVILY_API_KEY is not set in Convex environment variables. Please add it in your project settings.",
       );
     }
-    const tvly = tavily({ apiKey: tavilyApiKey });
+    const client = tavily({ apiKey: tavilyApiKey });
 
     try {
-      const searchResult = await tvly.search(query, {
+      const searchResult = await client.search(query, {
         maxResults: 5,
-        includeImages: false,
       });
 
       // Format the results into a JSON string for the LLM to process.
