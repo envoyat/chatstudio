@@ -1,13 +1,14 @@
 "use node";
 import Anthropic from "@anthropic-ai/sdk";
 import type { CoreMessage } from "ai";
+import { MESSAGE_ROLES } from "../constants";
 
 // Helper to format messages for Anthropic's SDK
 const formatMessages = (messages: CoreMessage[]) => {
   return messages
     .filter(
       (msg) =>
-        (msg.role === "user" || msg.role === "assistant") &&
+        (msg.role === MESSAGE_ROLES.USER || msg.role === MESSAGE_ROLES.ASSISTANT) &&
         typeof msg.content === "string"
     )
     .map((msg) => ({

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
+import { MESSAGE_ROLES } from "./constants";
 
 export const create = mutation({
   args: {
@@ -106,7 +107,7 @@ export const listWithLastMessage = query({
       // The last message, which can be null if the thread is empty
       lastMessage: v.union(
         v.object({
-          role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data")),
+          role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
           isComplete: v.optional(v.boolean()),
         }),
         v.null()

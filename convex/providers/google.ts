@@ -1,17 +1,18 @@
 "use node";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { CoreMessage } from "ai";
+import { MESSAGE_ROLES } from "../constants";
 
 // Helper to format messages for Google's SDK
 const formatMessages = (messages: CoreMessage[]) => {
   return messages
     .filter(
       (msg) =>
-        (msg.role === "user" || msg.role === "assistant") &&
+        (msg.role === MESSAGE_ROLES.USER || msg.role === MESSAGE_ROLES.ASSISTANT) &&
         typeof msg.content === "string"
     )
     .map((msg) => ({
-      role: msg.role === "assistant" ? "model" : "user",
+      role: msg.role === MESSAGE_ROLES.ASSISTANT ? "model" : "user",
       parts: [{ text: msg.content as string }],
     }));
 };

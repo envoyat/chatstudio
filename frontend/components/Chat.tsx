@@ -11,6 +11,7 @@ import { useTokenCounter } from "@/frontend/hooks/useTokenCounter"
 import { useState, useMemo, useEffect } from "react"
 import { useConvexAuth } from "convex/react"
 import type { Id } from "@/convex/_generated/dataModel"
+import { MESSAGE_ROLES } from "@/convex/constants"
 
 interface ChatProps {
   threadId: string // UUID from URL
@@ -58,7 +59,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
     if (!messages || messages.length === 0) return false;
     const lastMessage = messages[messages.length - 1];
     const messageData = lastMessage.data as { isComplete?: boolean } | undefined;
-    return lastMessage.role === 'assistant' && messageData?.isComplete === false;
+    return lastMessage.role === MESSAGE_ROLES.ASSISTANT && messageData?.isComplete === false;
   }, [messages]);
 
   return (

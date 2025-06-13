@@ -23,6 +23,7 @@ import { useThreads, useDeleteThread } from "@/lib/convex-hooks"
 import { convertConvexThread } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
 import { ROUTES } from "@/frontend/constants/routes"
+import { MESSAGE_ROLES } from "@/convex/constants"
 
 // A simple spinner component for the sidebar.
 const StreamingSpinner = () => (
@@ -84,7 +85,7 @@ export default function ChatSidebar() {
                 <SidebarMenu className="space-y-1">
                   {threads?.map((thread) => {
                     // Logic for streaming state
-                    const isStreaming = thread.lastMessage?.role === 'assistant' && thread.lastMessage.isComplete === false;
+                    const isStreaming = thread.lastMessage?.role === MESSAGE_ROLES.ASSISTANT && thread.lastMessage.isComplete === false;
                     
                     return (
                       <SidebarMenuItem key={thread.id}>

@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { MESSAGE_ROLES } from "./constants";
 
 export default defineSchema({
   threads: defineTable({
@@ -17,7 +18,7 @@ export default defineSchema({
   messages: defineTable({
     threadId: v.id("threads"),
     content: v.string(),
-    role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data")),
+    role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
     parts: v.optional(v.any()), // UIMessage parts
     createdAt: v.number(),
     isComplete: v.optional(v.boolean()), // ADDED: To track streaming status

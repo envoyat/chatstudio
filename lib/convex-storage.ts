@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import type { Id } from "@/convex/_generated/dataModel";
+import { type MessageRole } from "@/convex/constants";
 
 export interface Thread {
   _id: Id<"threads">;
@@ -9,7 +10,7 @@ export interface Thread {
   updatedAt: Date;
   lastMessageAt: Date;
   lastMessage?: {
-    role: "user" | "assistant" | "system" | "data";
+    role: MessageRole;
     isComplete?: boolean;
   } | null;
 }
@@ -20,7 +21,7 @@ export interface DBMessage {
   threadId: string;
   parts: UIMessage["parts"];
   content: string;
-  role: "user" | "assistant" | "system" | "data";
+  role: MessageRole;
   createdAt: Date;
 }
 
@@ -59,7 +60,7 @@ export function convertConvexMessage(convexMessage: {
   _creationTime: number;
   threadId: Id<"threads">;
   content: string;
-  role: "user" | "assistant" | "system" | "data";
+  role: MessageRole;
   parts?: any;
   createdAt: number;
 }): DBMessage {

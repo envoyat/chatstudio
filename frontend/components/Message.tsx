@@ -8,6 +8,7 @@ import equal from "fast-deep-equal"
 import type { Id } from "@/convex/_generated/dataModel"
 import MessageControls from "./MessageControls"
 import MessageEditor from "./MessageEditor"
+import { MESSAGE_ROLES } from "@/convex/constants"
 
 function PureMessage({
   message,
@@ -20,7 +21,7 @@ function PureMessage({
 }) {
   const [mode, setMode] = useState<"view" | "edit">("view")
 
-  const isStreaming = message.role === 'assistant' && (message.data as { isComplete?: boolean })?.isComplete === false;
+  const isStreaming = message.role === MESSAGE_ROLES.ASSISTANT && (message.data as { isComplete?: boolean })?.isComplete === false;
 
   const handleSetMode = (newMode: "view" | "edit") => {
     // Prevent editing a message if another one is currently streaming.
@@ -29,11 +30,11 @@ function PureMessage({
   }
 
   return (
-    <div role="article" className={cn("flex flex-col", message.role === "user" ? "items-end" : "items-start")}>
+    <div role="article" className={cn("flex flex-col", message.role === MESSAGE_ROLES.USER ? "items-end" : "items-start")}>
       <div
         className={cn(
           "group relative px-4 py-3 rounded-xl",
-          message.role === "user" 
+          message.role === MESSAGE_ROLES.USER 
             ? "bg-secondary border border-secondary-foreground/2 max-w-[80%]" 
             : "w-full"
         )}
