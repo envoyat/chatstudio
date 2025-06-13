@@ -198,7 +198,6 @@ export class ToolCallingProvider {
           args: block.input,
         };
         toolCalls.push(toolCall);
-
         const result = await onToolCall(toolCall);
 
         // For Anthropic, we need to make another call with the tool result
@@ -439,17 +438,91 @@ export class ToolCallingProvider {
     tools: ToolDefinition[],
     onToolCall: (toolCall: ToolCall) => Promise<string>
   ): AsyncIterable<{ type: "text" | "tool_call" | "tool_result"; content: string; toolCall?: ToolCall }> {
-    // Anthropic's streaming with tools is more complex
-    // For now, we'll use the non-streaming version and yield the result
-    const result = await this.executeAnthropic(messages, tools, onToolCall);
-    
-    if (result.toolCalls) {
-      for (const toolCall of result.toolCalls) {
+    const anthropic = new Anthropic({ apiKey: this.apiKey });
+
+    const anthropicTools = tools.map(tool => ({
+      name: tool.function.name,
+      description: tool.function.description,
+      input_schema: {
+        type: "object" as const,
+        properties: tool.function.parameters.properties,
+        required: tool.function.parameters.required,
+      },
+    }));
+
+    const anthropicMessages = messages
+      .filter(msg => msg.role === MESSAGE_ROLES.USER || msg.role === MESSAGE_ROLES.ASSISTANT)
+      .map(msg => ({
+        role: msg.role as "user" | "assistant",
+        content: msg.content as string,
+      }));
+
+    const response = await anthropic.messages.create({
+      model: this.model,
+      max_tokens: 4096,
+      messages: anthropicMessages,
+      tools: anthropicTools,
+    });
+
+    let finalContent = "";
+    const toolCalls: ToolCall[] = [];
+
+    for (const block of response.content) {
+      if (block.type === "text") {
+        finalContent += block.text;
+      } else if (block.type === "tool_use") {
+        const toolCall: ToolCall = {
+          id: block.id,
+          name: block.name,
+          args: block.input,
+        };
+        toolCalls.push(toolCall);
+
+        // Emit tool call event BEFORE executing it
         yield { type: "tool_call", content: "", toolCall };
+
+        const result = await onToolCall(toolCall);
+        
+        // Emit tool result event
+        yield { type: "tool_result", content: result };
+
+        // For Anthropic, we need to make another call with the tool result
+        const followUpMessages = [
+          ...anthropicMessages,
+          {
+            role: "assistant" as const,
+            content: response.content,
+          },
+          {
+            role: "user" as const,
+            content: [
+              {
+                type: "tool_result" as const,
+                tool_use_id: block.id,
+                content: result,
+              },
+            ],
+          },
+        ];
+
+        const followUpResponse = await anthropic.messages.create({
+          model: this.model,
+          max_tokens: 4096,
+          messages: followUpMessages,
+        });
+
+        for (const followUpBlock of followUpResponse.content) {
+          if (followUpBlock.type === "text") {
+            finalContent += followUpBlock.text;
+          }
+        }
       }
     }
-    
-    yield { type: "text", content: result.content };
+
+    // Yield the final content as text chunks
+    if (finalContent) {
+      yield { type: "text", content: finalContent };
+    }
   }
 
   private async* streamGoogle(
@@ -457,17 +530,75 @@ export class ToolCallingProvider {
     tools: ToolDefinition[],
     onToolCall: (toolCall: ToolCall) => Promise<string>
   ): AsyncIterable<{ type: "text" | "tool_call" | "tool_result"; content: string; toolCall?: ToolCall }> {
-    // Google's streaming with tools is also complex
-    // For now, we'll use the non-streaming version and yield the result
-    const result = await this.executeGoogle(messages, tools, onToolCall);
-    
-    if (result.toolCalls) {
-      for (const toolCall of result.toolCalls) {
+    const genAI = new GoogleGenerativeAI(this.apiKey);
+    const model = genAI.getGenerativeModel({ 
+      model: this.model,
+      tools: [{
+        functionDeclarations: tools.map(tool => ({
+          name: tool.function.name,
+          description: tool.function.description,
+          parameters: {
+            type: "OBJECT" as any,
+            properties: tool.function.parameters.properties,
+            required: tool.function.parameters.required,
+          },
+        })),
+      }],
+    });
+
+    const googleMessages = messages
+      .filter(msg => msg.role === MESSAGE_ROLES.USER || msg.role === MESSAGE_ROLES.ASSISTANT)
+      .map(msg => ({
+        role: msg.role === MESSAGE_ROLES.ASSISTANT ? "model" : "user",
+        parts: [{ text: msg.content as string }],
+      }));
+
+    const chat = model.startChat({
+      history: googleMessages.slice(0, -1),
+    });
+
+    const result = await chat.sendMessage(googleMessages[googleMessages.length - 1].parts[0].text);
+    const response = result.response;
+
+    let finalContent = "";
+    const toolCalls: ToolCall[] = [];
+
+    // Check if the response contains function calls
+    const functionCalls = response.functionCalls();
+    if (functionCalls && functionCalls.length > 0) {
+      for (const functionCall of functionCalls) {
+        const toolCall: ToolCall = {
+          name: functionCall.name,
+          args: functionCall.args,
+        };
+        toolCalls.push(toolCall);
+
+        // Emit tool call event BEFORE executing it
         yield { type: "tool_call", content: "", toolCall };
+
+        const toolResult = await onToolCall(toolCall);
+
+        // Emit tool result event
+        yield { type: "tool_result", content: toolResult };
+
+        // Send the function response back to continue the conversation
+        const functionResponse = await chat.sendMessage([{
+          functionResponse: {
+            name: functionCall.name,
+            response: { result: toolResult },
+          },
+        }]);
+
+        finalContent = functionResponse.response.text();
       }
+    } else {
+      finalContent = response.text();
     }
-    
-    yield { type: "text", content: result.content };
+
+    // Yield the final content as text chunks
+    if (finalContent) {
+      yield { type: "text", content: finalContent };
+    }
   }
 }
 
