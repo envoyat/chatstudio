@@ -8,9 +8,10 @@ export const send = mutation({
     content: v.string(),
     model: v.string(),
     userApiKey: v.optional(v.string()),
+    isWebSearchEnabled: v.optional(v.boolean()),
   },
   returns: v.null(),
-  handler: async (ctx, { threadId, content, model, userApiKey }) => {
+  handler: async (ctx, { threadId, content, model, userApiKey, isWebSearchEnabled }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authorized to send messages");
@@ -50,6 +51,7 @@ export const send = mutation({
       assistantMessageId,
       model,
       userApiKey,
+      isWebSearchEnabled,
     });
 
     // 5. Update thread's lastMessageAt
@@ -72,10 +74,12 @@ export const list = query({
       _creationTime: v.number(),
       threadId: v.id("threads"),
       content: v.string(),
-      role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data")),
+      role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data"), v.literal("tool")),
       parts: v.optional(v.any()),
       createdAt: v.number(),
       isComplete: v.optional(v.boolean()),
+      toolCalls: v.optional(v.any()),
+      toolOutputs: v.optional(v.any()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -96,22 +100,34 @@ export const list = query({
   },
 });
 
-// NEW: Internal mutation to append content to the streaming message.
 export const update = internalMutation({
-  args: { messageId: v.id("messages"), content: v.string() },
+  args: { 
+    messageId: v.id("messages"), 
+    content: v.string(),
+    toolCalls: v.optional(v.any()),
+    toolOutputs: v.optional(v.any()),
+  },
   returns: v.null(),
-  handler: async (ctx, { messageId, content }) => {
-    await ctx.db.patch(messageId, { content });
+  handler: async (ctx, { messageId, content, toolCalls, toolOutputs }) => {
+    const updates: any = { content };
+    if (toolCalls !== undefined) updates.toolCalls = toolCalls;
+    if (toolOutputs !== undefined) updates.toolOutputs = toolOutputs;
+    
+    await ctx.db.patch(messageId, updates);
     return null;
   },
 });
 
-// NEW: Internal mutation to finalize the message and mark it as complete.
 export const finalize = internalMutation({
   args: { messageId: v.id("messages"), content: v.string() },
   returns: v.null(),
   handler: async (ctx, { messageId, content }) => {
-    await ctx.db.patch(messageId, { content, isComplete: true });
+    await ctx.db.patch(messageId, { 
+      content, 
+      isComplete: true,
+      toolCalls: undefined, // Clear tool call data on finalization
+      toolOutputs: undefined,
+    });
     return null;
   },
 });

@@ -41,12 +41,15 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
     if (!isAuthenticated || !convexMessages) return []
     return convexMessages.map((msg) => ({
       id: msg._id,
-      role: msg.role,
+      role: msg.role as "user" | "assistant" | "system" | "data",
       content: msg.content,
       parts: msg.parts || [{ type: "text", text: msg.content }],
       createdAt: new Date(msg.createdAt),
-      // NEW: Pass the streaming status to the UI component
-      data: { isComplete: msg.isComplete ?? true },
+      data: { 
+        isComplete: msg.isComplete ?? true,
+        toolCalls: msg.toolCalls,
+        toolOutputs: msg.toolOutputs,
+      },
     }))
   }, [convexMessages, isAuthenticated])
 

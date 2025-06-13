@@ -8,6 +8,7 @@ import equal from "fast-deep-equal"
 import type { Id } from "@/convex/_generated/dataModel"
 import MessageControls from "./MessageControls"
 import MessageEditor from "./MessageEditor"
+import ToolCallDisplay from "./ToolCallDisplay"
 
 function PureMessage({
   message,
@@ -21,9 +22,9 @@ function PureMessage({
   const [mode, setMode] = useState<"view" | "edit">("view")
 
   const isStreaming = message.role === 'assistant' && (message.data as { isComplete?: boolean })?.isComplete === false;
+  const toolCalls = (message.data as { toolCalls?: any[] })?.toolCalls;
 
   const handleSetMode = (newMode: "view" | "edit") => {
-    // Prevent editing a message if another one is currently streaming.
     if (isStreaming && newMode === "edit") return;
     setMode(newMode);
   }
@@ -45,11 +46,16 @@ function PureMessage({
             convexThreadId={convexThreadId}
           />
         ) : (
-          <MarkdownRenderer content={message.content} id={message.id} />
+          <>
+            {toolCalls && toolCalls.length > 0 ? (
+              <ToolCallDisplay toolCalls={toolCalls} />
+            ) : (
+              message.content && <MarkdownRenderer content={message.content} id={message.id} />
+            )}
+          </>
         )}
         
-        {/* Render controls only when not editing and not streaming */}
-        {mode === "view" && !isStreaming && (
+        {mode === "view" && !isStreaming && (!toolCalls || toolCalls.length === 0) && (
           <MessageControls
             message={message}
             messages={messages}

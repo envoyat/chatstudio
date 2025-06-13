@@ -5,16 +5,19 @@ export type ChatRunSettings = {
   temperature: number
   tokenCount: number
   maxTokens: number
+  isWebSearchEnabled: boolean
 }
 
 type ChatRunSettingsStore = {
   temperature: number
   tokenCount: number
   maxTokens: number
+  isWebSearchEnabled: boolean
   setTemperature: (temperature: number) => void
   setTokenCount: (count: number) => void
   setMaxTokens: (maxTokens: number) => void
   updateTokenCount: (count: number) => void
+  toggleWebSearch: () => void
 }
 
 export const useChatRunSettingsStore = create<ChatRunSettingsStore>()(
@@ -23,16 +26,19 @@ export const useChatRunSettingsStore = create<ChatRunSettingsStore>()(
       temperature: 1.0,
       tokenCount: 0,
       maxTokens: 1048576, // Default to Gemini 2.5 Pro token limit
+      isWebSearchEnabled: false,
       
       setTemperature: (temperature) => set({ temperature }),
       setTokenCount: (tokenCount) => set({ tokenCount }),
       setMaxTokens: (maxTokens) => set({ maxTokens }),
       updateTokenCount: (tokenCount) => set({ tokenCount }),
+      toggleWebSearch: () => set((state) => ({ isWebSearchEnabled: !state.isWebSearchEnabled })),
     }),
     {
       name: "chat-run-settings",
       partialize: (state) => ({ 
-        temperature: state.temperature 
+        temperature: state.temperature,
+        isWebSearchEnabled: state.isWebSearchEnabled,
       }),
     },
   ),

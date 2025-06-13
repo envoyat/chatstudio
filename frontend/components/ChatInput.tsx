@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { memo, useState, useCallback, useMemo } from "react"
-import { ChevronDown, Check, ArrowUpIcon } from "lucide-react"
+import { ChevronDown, Check, ArrowUpIcon, Search } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -16,6 +16,7 @@ import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useCreateThread } from "@/lib/convex-hooks"
 import type { Id } from "@/convex/_generated/dataModel"
+import { useChatRunSettingsStore } from "../stores/ChatRunSettingsStore"
 
 interface ChatInputProps {
   threadId: string
@@ -32,6 +33,7 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
   
   const selectedModel = useModelStore((state) => state.selectedModel)
   const { getKey, hasUserKey } = useAPIKeyStore()
+  const { isWebSearchEnabled, toggleWebSearch } = useChatRunSettingsStore()
   
   const isDisabled = useMemo(() => !input.trim() || isStreaming, [input, isStreaming])
   
@@ -70,6 +72,7 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
         content: currentInput,
         model: selectedModel,
         userApiKey: userApiKeyForModel || undefined,
+        isWebSearchEnabled: isWebSearchEnabled,
       }
 
       try {
@@ -83,7 +86,7 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
   }, [
     input, isDisabled, sendMessage, convexThreadId, onConvexThreadIdChange,
     isAuthenticated, convexCreateThread, threadId, location.pathname, navigate,
-    selectedModel, getKey, hasUserKey, adjustHeight
+    selectedModel, getKey, hasUserKey, adjustHeight, isWebSearchEnabled
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -116,7 +119,19 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
             />
             <div className="h-14 flex items-center px-2">
               <div className="flex items-center justify-between w-full">
-                <ChatModelDropdown />
+                <div className="flex items-center gap-1">
+                  <ChatModelDropdown />
+                  <Button
+                    onClick={toggleWebSearch}
+                    variant={isWebSearchEnabled ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-8 px-2"
+                    aria-label="Toggle web search"
+                  >
+                    <Search className="h-4 w-4 mr-1" />
+                    Web
+                  </Button>
+                </div>
                 <Button onClick={handleSubmit} variant="default" size="icon" disabled={isDisabled} aria-label="Send message">
                   <ArrowUpIcon size={18} />
                 </Button>

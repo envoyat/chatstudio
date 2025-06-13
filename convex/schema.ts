@@ -17,10 +17,12 @@ export default defineSchema({
   messages: defineTable({
     threadId: v.id("threads"),
     content: v.string(),
-    role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data")),
+    role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system"), v.literal("data"), v.literal("tool")),
     parts: v.optional(v.any()), // UIMessage parts
     createdAt: v.number(),
     isComplete: v.optional(v.boolean()), // ADDED: To track streaming status
+    toolCalls: v.optional(v.any()),
+    toolOutputs: v.optional(v.any()),
   })
     .index("by_thread", ["threadId"])
     .index("by_thread_and_created", ["threadId", "createdAt"]),
