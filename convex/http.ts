@@ -15,19 +15,24 @@ const http = httpRouter();
 
 // Create the web search tool using Tavily
 const webSearchTool = tool({
-  description: 'Search the web for current information about a topic',
+  description: 'Search the web for current information. Use this when you need up-to-date information that may not be in your training data.',
   parameters: z.object({
     query: z.string().describe('The search query'),
   }),
   execute: async ({ query }) => {
+    console.log("🔎 Web search tool called with query:", query);
+    
     const tavilyApiKey = process.env.TAVILY_KEY;
     if (!tavilyApiKey) {
+      console.error("❌ Tavily API key not found in environment variables");
       throw new Error('Tavily API key not found');
     }
 
+    console.log("✅ Tavily API key found, creating client");
     const tavilyClient = new TavilyClient({ apiKey: tavilyApiKey });
     
     try {
+      console.log("🌐 Calling Tavily search API...");
       const response = await tavilyClient.search({
         query,
         search_depth: "basic",
@@ -36,16 +41,34 @@ const webSearchTool = tool({
         max_results: 5,
       });
 
-      return {
+      console.log("📊 Tavily search response:", {
+        resultsCount: response.results?.length || 0,
+        hasAnswer: !!response.answer
+      });
+
+      // Simplify the tool result to ensure it's properly processed
+      const simplifiedResults = response.results.slice(0, 3).map((result: any) => ({
+        title: result.title || "No title",
+        url: result.url || "",
+        content: (result.content || "").substring(0, 300), // Shorter content
+      }));
+
+      const toolResult = {
         query,
-        results: response.results.map((result: any) => ({
-          title: result.title,
-          url: result.url,
-          content: result.content,
-          score: result.score,
-        })),
-        answer: response.answer,
+        answer: (response.answer || "").substring(0, 500), // Shorter answer
+        results: simplifiedResults,
+        summary: `Found ${response.results.length} results for "${query}"`
       };
+
+      console.log("🔄 Returning tool result:", {
+        query: toolResult.query,
+        resultsCount: toolResult.results.length,
+        hasAnswer: !!toolResult.answer,
+        answerLength: toolResult.answer?.length || 0
+      });
+
+      console.log("🎯 Tool execution completed successfully");
+      return toolResult;
     } catch (error) {
       console.error('Tavily search error:', error);
       throw new Error(`Web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -58,6 +81,14 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     const { messages, model, userApiKey, webSearchEnabled, temperature } = await request.json();
+
+    console.log("🔍 Chat request received:", {
+      model,
+      webSearchEnabled,
+      temperature,
+      messagesCount: messages?.length,
+      userApiKeyProvided: !!userApiKey
+    });
 
     try {
       const aiModelName = model as AIModel;
@@ -135,21 +166,51 @@ http.route({
           - You need up-to-date information that may have changed since your training data
           - The user specifically requests current information about a topic
           
-          When you use web search, provide clear attribution to your sources and explain when the information was found.
+          When you use web search:
+          1. Call the webSearch tool with an appropriate query
+          2. Wait for the search results
+          3. IMMEDIATELY after receiving results, write a comprehensive response that:
+             - Directly answers the user's question using the search data
+             - Cites specific sources with URLs
+             - Mentions this is current information from web search
+          
+          CRITICAL: You must ALWAYS generate text content after using the search tool. The tool result alone is not sufficient - you must interpret and present the information to the user in a helpful way.
           ` : ''}
         `,
       };
 
       // Add tools if web search is enabled
       if (webSearchEnabled) {
+        console.log("🔧 Adding web search tool to options");
         streamTextOptions.tools = {
           webSearch: webSearchTool,
         };
+        streamTextOptions.toolChoice = "auto"; // Let model decide when to use tools
+        streamTextOptions.maxToolRoundtrips = 5; // Allow multiple rounds if needed
       }
 
-      const result = await streamText(streamTextOptions);
+      console.log("🚀 Calling streamText with options:", {
+        model: streamTextOptions.model?.modelId || "unknown",
+        temperature: streamTextOptions.temperature,
+        hasTools: !!streamTextOptions.tools,
+        toolsCount: streamTextOptions.tools ? Object.keys(streamTextOptions.tools).length : 0
+      });
+
+      console.log("⏱️ Starting streamText call...");
+      
+      // -- FIX: Do NOT await streamText here! --
+      const result = streamText(streamTextOptions);
+      console.log("✅ streamText call initiated, creating response stream");
+
+      // --- THIS IS THE KEY FIX ---
+      // Tell the AI SDK to run the stream to completion on the server-side,
+      // which is crucial for multi-step tool use in a serverless environment.
+      // We don't await this; it runs in the background while we return the stream.
+      result.consumeStream(); 
+      // --------------------------
 
       // Respond with the stream, adding CORS headers
+      console.log("📡 Returning data stream response to client");
       return result.toDataStreamResponse({
         headers: {
           "Access-Control-Allow-Origin": process.env.CLIENT_ORIGIN || "*",

@@ -106,6 +106,7 @@ export default function Chat({ threadId: initialThreadUuid, initialMessages }: C
     id: initialThreadUuid, // The ID passed to useChat is the `id` for AI SDK internal caching
     initialMessages,
     experimental_throttle: 50,
+    maxSteps: 5, // Enable multi-step tool calls for web search
     onFinish: async ({ parts, content }) => {
       // Prefer `parts` if provided (it contains tokenized segments from the AI SDK).
       // If `parts` is missing, fall back to the `content` string supplied by the SDK.
