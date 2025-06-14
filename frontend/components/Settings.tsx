@@ -184,7 +184,7 @@ export default function Settings() {
       <div className="container max-w-4xl mx-auto py-8 space-y-8">
         {/* Account Section */}
         <Card>
-          <CardHeader>
+          <CardHeader className="px-4 py-0 md:p-6">
             <div className="flex items-center gap-2">
               <User className="h-5 w-5" />
               <CardTitle>Account Information</CardTitle>
@@ -193,54 +193,54 @@ export default function Settings() {
               Your account details and authentication status
             </CardDescription>
           </CardHeader>
-          <CardContent>
-                         <Authenticated>
-               <div className="space-y-4">
-                 <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/20">
-                   <div className="flex-shrink-0">
-                     {user?.imageUrl ? (
-                       <img 
-                         src={user.imageUrl} 
-                         alt={user.fullName || "User"} 
-                         className="w-12 h-12 rounded-full"
-                       />
-                     ) : (
-                       <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                         <User className="h-6 w-6 text-primary" />
-                       </div>
-                     )}
-                   </div>
-                   <div className="flex-1 min-w-0">
-                     <h3 className="font-medium text-lg">
-                       {user?.fullName || user?.firstName || "User"}
-                     </h3>
-                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                       <Mail className="h-4 w-4" />
-                       {user?.primaryEmailAddress?.emailAddress}
-                     </div>
-                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                       <Calendar className="h-4 w-4" />
-                       Joined {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Recently"}
-                     </div>
-                   </div>
-                   <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                     Signed In
-                   </Badge>
-                 </div>
-                 
-                 <div className="flex justify-end">
-                   <SignOutButton>
-                     <Button variant="outline" className="gap-2">
-                       <LogOut className="h-4 w-4" />
-                       Sign Out
-                     </Button>
-                   </SignOutButton>
-                 </div>
-               </div>
-             </Authenticated>
+          <CardContent className="p-2 md:p-6">
+            <Authenticated>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 p-3 md:p-4 md:border rounded-lg bg-muted/20">
+                  <div className="flex-shrink-0">
+                    {user?.imageUrl ? (
+                      <img 
+                        src={user.imageUrl} 
+                        alt={user.fullName || "User"} 
+                        className="w-12 h-12 rounded-full"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="h-6 w-6 text-primary" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-lg">
+                      {user?.fullName || user?.firstName || "User"}
+                    </h3>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Mail className="h-4 w-4" />
+                      {user?.primaryEmailAddress?.emailAddress}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      Joined {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Recently"}
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                    Signed In
+                  </Badge>
+                </div>
+                
+                <div className="flex justify-end">
+                  <SignOutButton>
+                    <Button variant="outline" className="gap-2">
+                      <LogOut className="h-4 w-4" />
+                      Sign Out
+                    </Button>
+                  </SignOutButton>
+                </div>
+              </div>
+            </Authenticated>
             
             <Unauthenticated>
-              <div className="text-center py-8">
+              <div className="text-center py-6 md:py-8">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
                   <User className="h-8 w-8 text-muted-foreground" />
                 </div>
@@ -261,7 +261,7 @@ export default function Settings() {
 
         {/* API Keys Section */}
         <Card>
-          <CardHeader>
+          <CardHeader className="p-4 md:p-6">
             <div className="flex items-center gap-2">
               <Key className="h-5 w-5" />
               <CardTitle>API Keys</CardTitle>
@@ -270,24 +270,32 @@ export default function Settings() {
               Free access to Gemini models is available! Add your own keys for increased rate limits and access to all models.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 p-4 md:p-6">
             {providers.map((provider) => {
               const keyState = apiKeys[provider.key]
               const hasUserApiKey = hasUserKey(provider.key)
               
               return (
-                <div key={provider.key} className="space-y-4 p-6 border border-border rounded-lg bg-card">
+                
+                <div key={provider.key} className="space-y-4 p-4 md:p-6 md:border border-border rounded-lg bg-card">
+                  <hr className="h-px my-top-8 bg-gray-200 border-0 dark:bg-gray-700 md:hidden"></hr>
                   <div className="flex items-center gap-3">
                     <Key className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">
-                      {provider.name} API Key
+                    <div className="flex flex-col">
+                      <h3 className="text-lg font-semibold">
+                        {provider.name} API Key
+                      </h3>
                       {provider.hasHostKey && (
-                        <span className="text-muted-foreground text-sm font-normal ml-2">(Optional - Free tier available)</span>
+                        <span className="text-muted-foreground text-sm font-normal">
+                          (Optional - Free tier available)
+                        </span>
                       )}
                       {!provider.hasHostKey && provider.required && (
-                        <span className="text-muted-foreground text-sm font-normal ml-2">(Required)</span>
+                        <span className="text-muted-foreground text-sm font-normal">
+                          (Required)
+                        </span>
                       )}
-                    </h3>
+                    </div>
                   </div>
                   
                   <div className="space-y-3">
@@ -342,7 +350,7 @@ export default function Settings() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="absolute right-1 top-1 h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                          className="absolute right-1 top-1 h-8 w-12 md:w-8 p-0 text-muted-foreground hover:text-foreground"
                           onClick={() => updateApiKey(provider.key, { showKey: !keyState.showKey })}
                         >
                           {keyState.showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -356,14 +364,16 @@ export default function Settings() {
                       )}
                     </div>
 
-                    <a 
-                      href={provider.helpUrl} 
-                      target="_blank" 
-                      className="text-sm text-blue-500 hover:underline inline-block" 
-                      rel="noreferrer"
-                    >
-                      Create {provider.name} API Key
-                    </a>
+                    <div className="w-full">
+                      <a 
+                        href={provider.helpUrl} 
+                        target="_blank" 
+                        className="text-sm text-center text-blue-500 hover:underline inline-block w-full" 
+                        rel="noreferrer"
+                      >
+                        Create {provider.name} API Key
+                      </a>
+                    </div>
 
                     {/* Status Messages */}
                     {keyState.saveStatus === 'success' && (
@@ -378,11 +388,11 @@ export default function Settings() {
                       </div>
                     )}
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center justify-center">
                       <Button
                         onClick={() => handleSave(provider.key)}
                         disabled={keyState.isSaving || (!keyState.value.trim() && provider.required)}
-                        className="flex items-center gap-2"
+                        className="flex items-center justify-center gap-2 w-full md:w-auto"
                       >
                         <Save className="h-4 w-4" />
                         {keyState.isSaving ? 'Saving...' : `Save ${provider.name} Key`}
