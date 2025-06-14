@@ -1,48 +1,61 @@
 # Chat Studio
 
-A modern, open-source chat application that provides free access to powerful AI models including Google's Gemini, Anthropic's Claude, OpenAI's GPT, and more. Built with Next.js 15, React Router, and featuring a beautiful, responsive UI.
+A modern, open-source AI chat application built with Convex backend that provides access to 13+ powerful AI models including Google's Gemini, Anthropic's Claude, OpenAI's GPT, and more. Features real-time data synchronization, persistent chat history, and a beautiful responsive UI.
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 [![Next.js](https://img.shields.io/badge/Next.js-15+-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-18+-blue?logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5+-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![Convex](https://img.shields.io/badge/Convex-Backend-orange)](https://convex.dev/)
 
 ## ✨ Features
 
 ### 🆓 **Free AI Access**
 - **No API key required** to get started
-- Free access to Gemini 2.5 Flash and Gemini 2.0 Flash models
-- Host-provided API keys for immediate usage
+- Free access to Gemini models via host-provided API keys
+- Fallback system ensures availability when user keys aren't provided
 
 ### 🔑 **Flexible API Key Management**
 - **Bring your own keys** for better rate limits and premium models
-- Support for multiple AI providers:
+- Support for **4 major AI providers** with **13+ models**:
   - 🟢 **Google AI** (Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash)
   - 🟣 **Anthropic** (Claude 4 Sonnet, Haiku 3.5, Opus)
-  - 🔵 **OpenAI** (GPT-4.1, o3, o4-mini)
-  - 🟠 **OpenRouter** (Access to multiple models)
-- User keys automatically override host keys when provided
+  - 🔵 **OpenAI** (GPT-4.1, GPT-4.1-mini, GPT-4.1-nano, o3, o4-mini)
+  - 🟠 **OpenRouter** (DeepSeek R1, Gemini via OpenRouter)
+- Smart fallback: User keys → Host keys → Error handling
 
 ### 💬 **Modern Chat Experience**
-- Real-time streaming responses
-- Conversation persistence with local storage
+- **Real-time streaming responses** via Convex HTTP endpoints
+- **Persistent chat history** with Convex database
+- **Dual storage modes**: 
+  - 🔐 **Authenticated**: Permanent storage in Convex
+  - 👤 **Guest**: Temporary storage in browser memory
+- **Auto-generated titles** using AI
 - Beautiful, responsive UI with dark/light mode
 - LaTeX math rendering support
 - Message editing and regeneration
-- Auto-generated conversation titles
 
-### 🔒 **Privacy & Security**
-- All data stored locally in your browser
-- No server-side conversation logging
-- API keys encrypted and stored securely
+### 🔒 **Authentication & Privacy**
+- **Google OAuth integration** for seamless sign-in
+- **Guest mode** for immediate usage without account
+- **Custom JWT-based authentication** via Convex
+- API keys handled securely with encryption
 - Open source and transparent
+
+### 🚀 **Real-time Backend**
+- **Convex-powered backend** for real-time data sync
+- **Thread management** with automatic updates
+- **Message persistence** across devices
+- **Automatic title generation** for conversations
+- **Search and indexing** capabilities
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
 - Node.js 18+ or Bun
-- A Google AI API key (optional, for host setup)
+- Convex account (free)
+- Google AI API key (optional, for host setup)
 
 ### Installation
 
@@ -59,57 +72,102 @@ A modern, open-source chat application that provides free access to powerful AI 
    npm install
    ```
 
-3. **Set up environment variables (optional):**
-   
-   Create a `.env.local` file for host API key setup:
+3. **Set up Convex:**
    ```bash
-   # Optional: Provide free access to Gemini models for all users
-   HOST_GOOGLE_API_KEY=your_google_api_key_here
+   # Start Convex development server
+   bunx convex dev
    ```
 
-4. **Start the development server:**
+4. **Configure environment variables:**
+   
+   Create a `.env.local` file:
+   ```bash
+   # Convex Configuration (automatically set by convex dev)
+   CONVEX_DEPLOYMENT=dev:your-deployment-name
+   NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+   
+   # Authentication
+   NEXT_PUBLIC_CLERK_FRONTEND_API_URL=https://your-clerk-instance.clerk.accounts.dev
+   
+   # Site Configuration
+   SITE_URL=http://localhost:3000
+   ```
+
+5. **Set up host API keys (optional):**
+   ```bash
+   # Provide free access to AI models for all users
+   bunx convex env set HOST_GOOGLE_API_KEY your_google_api_key_here
+   bunx convex env set ANTHROPIC_API_KEY your_anthropic_api_key_here
+   bunx convex env set OPENAI_API_KEY your_openai_api_key_here
+   bunx convex env set OPENROUTER_API_KEY your_openrouter_api_key_here
+   ```
+
+6. **Start the development server:**
    ```bash
    bun run dev
    # or
    npm run dev
    ```
 
-5. **Open your browser:**
+7. **Open your browser:**
    Navigate to [http://localhost:3000](http://localhost:3000)
+
+## 📚 Documentation
+
+For detailed setup instructions, deployment guide, and API documentation:
+
+📖 **[Convex Setup Guide](./CONVEX_SETUP.md)** - Complete backend configuration and deployment instructions
 
 ## 🔧 Configuration
 
-### Host API Key Setup (Optional)
+### Host API Key Setup (Recommended)
 
-To provide free access to Gemini models for all users:
+To provide free access to AI models for all users:
 
-1. Get a Google AI API key from [Google AI Studio](https://aistudio.google.com/apikey)
-2. Add it to your `.env.local` file:
+1. Get API keys from providers:
+   - [Google AI Studio](https://aistudio.google.com/apikey)
+   - [Anthropic Console](https://console.anthropic.com/settings/keys)
+   - [OpenAI Platform](https://platform.openai.com/settings/organization/api-keys)
+   - [OpenRouter Dashboard](https://openrouter.ai/keys)
+
+2. Set them in your Convex deployment:
+   ```bash
+   bunx convex env set HOST_GOOGLE_API_KEY AIza...your_key_here
+   bunx convex env set ANTHROPIC_API_KEY sk-ant-...
+   bunx convex env set OPENAI_API_KEY sk-...
+   bunx convex env set OPENROUTER_API_KEY sk-or-...
    ```
-   HOST_GOOGLE_API_KEY=AIza...your_key_here
-   ```
-3. Restart your development server
 
-**Benefits of host API key:**
+**Benefits of host API keys:**
 - Users can chat immediately without setup
-- Free access to Gemini 2.5 Flash and 2.0 Flash
+- Fallback when user keys aren't provided
+- Free access to multiple AI models
 - Users can still add their own keys for premium features
 
 ### User API Keys
 
-Users can add their own API keys for:
+Users can add their own API keys in the app settings for:
 - **Better rate limits**
-- **Access to premium models** (Gemini 2.5 Pro, Claude 4, GPT-4.1)
+- **Access to premium models**
 - **Personal usage quotas**
+- **Override host limitations**
 
 ## 📁 Project Structure
 
 ```
 chat-studio/
 ├── app/                    # Next.js app router
-│   ├── api/               # API routes
+│   ├── api/               # Legacy API routes
 │   └── page.tsx           # Main page
 ├── components/            # Reusable UI components
+├── convex/                # Convex backend
+│   ├── ai.ts             # AI title generation
+│   ├── http.ts           # HTTP endpoints (/api/chat)
+│   ├── messages.ts       # Message operations
+│   ├── threads.ts        # Thread management
+│   ├── schema.ts         # Database schema
+│   ├── models.ts         # AI model configurations
+│   └── auth.config.ts    # Authentication config
 ├── frontend/              # Frontend-specific code
 │   ├── components/        # React components
 │   ├── hooks/            # Custom React hooks
@@ -123,46 +181,102 @@ chat-studio/
 
 ## 🛠️ Technology Stack
 
+### Backend
+- **Database:** Convex (real-time database)
+- **API:** Convex HTTP actions
+- **Authentication:** Custom JWT with Google OAuth
+- **AI Integration:** Vercel AI SDK
+
+### Frontend
 - **Framework:** Next.js 15 with App Router
 - **Frontend:** React 18, TypeScript
 - **Routing:** React Router (client-side)
 - **Styling:** Tailwind CSS + shadcn/ui
 - **State Management:** Zustand
-- **Database:** Dexie (IndexedDB)
-- **AI SDKs:** Vercel AI SDK
+- **Local Storage:** Browser memory (guest mode)
 - **Package Manager:** Bun
 
 ## 🎯 Supported AI Models
 
-### Free Models (with host API key)
-- ✅ Gemini 2.5 Flash
-- ✅ Gemini 2.0 Flash
+### Google AI (Gemini)
+- ✅ Gemini 2.5 Pro (`gemini-2.5-pro-preview-05-06`)
+- ✅ Gemini 2.5 Flash (`gemini-2.5-flash-preview-04-17`)
+- ✅ Gemini 2.0 Flash (`gemini-2.0-flash`)
 
-### Premium Models (require user API keys)
-- 🔑 **Google:** Gemini 2.5 Pro
-- 🔑 **Anthropic:** Claude 4 Sonnet, Haiku 3.5, Opus
-- 🔑 **OpenAI:** GPT-4.1, GPT-4.1-mini, o3, o4-mini
-- 🔑 **OpenRouter:** DeepSeek R1, Gemini via OpenRouter
+### OpenAI (GPT)
+- ✅ GPT-4.1 (`gpt-4.1`)
+- ✅ GPT-4.1-mini (`gpt-4.1-mini`)
+- ✅ GPT-4.1-nano (`gpt-4.1-nano`)
+- ✅ o3 (`o3`)
+- ✅ o4-mini (`o4-mini`)
+
+### Anthropic (Claude)
+- ✅ Claude 4 Sonnet (`claude-4-sonnet-20250514`)
+- ✅ Claude Haiku 3.5 (`claude-3-5-haiku-20241022`)
+- ✅ Claude 4 Opus (`claude-4-opus-20250514`)
+
+### OpenRouter
+- ✅ DeepSeek R1 (`deepseek/deepseek-r1-0528:free`)
+- ✅ Gemini 2.0 Flash (`google/gemini-2.0-flash-exp:free`)
 
 ## 🚀 Deployment
 
-### Vercel (Recommended)
+### Production Deployment
 
-1. Fork this repository
-2. Connect to Vercel
-3. Add environment variables:
+1. **Deploy Convex backend:**
+   ```bash
+   bunx convex deploy --prod
    ```
-   HOST_GOOGLE_API_KEY=your_key_here
+
+2. **Set production environment variables:**
+   ```bash
+   bunx convex env set HOST_GOOGLE_API_KEY your_key_here --prod
+   bunx convex env set ANTHROPIC_API_KEY your_key_here --prod
+   bunx convex env set OPENAI_API_KEY your_key_here --prod
+   bunx convex env set OPENROUTER_API_KEY your_key_here --prod
+   bunx convex env set SITE_URL https://your-domain.com --prod
    ```
-4. Deploy!
+
+3. **Deploy frontend** (Vercel recommended):
+   - Connect your repository to Vercel
+   - Set environment variables:
+     ```
+     CONVEX_DEPLOYMENT=prod:your-production-deployment
+     NEXT_PUBLIC_CONVEX_URL=https://your-production.convex.cloud
+     NEXT_PUBLIC_CLERK_FRONTEND_API_URL=https://your-auth-domain
+     ```
+   - Deploy!
 
 ### Other Platforms
 
-The app can be deployed on any platform that supports Next.js:
+The frontend can be deployed on platforms supporting Next.js:
 - Netlify
 - Railway
 - DigitalOcean App Platform
 - Self-hosted with Docker
+
+**Note:** Backend always runs on Convex Cloud for optimal performance.
+
+## 🏗️ Architecture
+
+### Dual Storage System
+- **Authenticated Users**: Data stored in Convex database
+- **Guest Users**: Data stored in browser memory
+- **Seamless Migration**: Guest data can be saved when signing in
+
+### Authentication Flow
+1. **Guest Mode**: Immediate access, temporary storage
+2. **Google Sign-In**: OAuth flow via custom JWT system
+3. **Data Persistence**: Conversations saved to Convex
+4. **Cross-Device Sync**: Access chat history anywhere
+
+### API Key Management
+```
+User API Key → Host API Key → Error Handling
+     ↓              ↓              ↓
+  Premium        Free Access    Clear Error
+   Models         to AI         Message
+```
 
 ## 🤝 Contributing
 
@@ -178,6 +292,8 @@ We welcome contributions! Please see our contributing guidelines:
 
 - Use TypeScript for all new code
 - Follow the existing code style
+- Test both authenticated and guest modes
+- Update Convex schema if needed
 - Add tests for new features
 - Update documentation as needed
 
@@ -185,26 +301,39 @@ We welcome contributions! Please see our contributing guidelines:
 
 ### Getting API Keys
 
-| Provider | Get API Key | Key Format |
-|----------|-------------|------------|
-| **Google AI** | [AI Studio](https://aistudio.google.com/apikey) | `AIza...` |
-| **Anthropic** | [Console](https://console.anthropic.com/settings/keys) | `sk-ant-...` |
-| **OpenAI** | [Platform](https://platform.openai.com/settings/organization/api-keys) | `sk-...` |
-| **OpenRouter** | [Dashboard](https://openrouter.ai/keys) | `sk-or-...` |
+| Provider | Get API Key | Key Format | Models Available |
+|----------|-------------|------------|------------------|
+| **Google AI** | [AI Studio](https://aistudio.google.com/apikey) | `AIza...` | Gemini 2.5 Pro/Flash, 2.0 Flash |
+| **Anthropic** | [Console](https://console.anthropic.com/settings/keys) | `sk-ant-...` | Claude 4 Sonnet/Opus, Haiku 3.5 |
+| **OpenAI** | [Platform](https://platform.openai.com/settings/organization/api-keys) | `sk-...` | GPT-4.1, o3, o4-mini |
+| **OpenRouter** | [Dashboard](https://openrouter.ai/keys) | `sk-or-...` | DeepSeek R1, Gemini (free tier) |
 
-### Rate Limits & Costs
+### Cost & Rate Limits
 
-- **Host keys:** Shared rate limits, free for users
-- **User keys:** Personal quotas, user pays for usage
-- **OpenRouter:** Often has free tier models available
+- **Host keys:** Shared usage, free for users, managed by host
+- **User keys:** Personal quotas, user controls costs and limits
+- **Fallback system:** Ensures service availability
+- **OpenRouter:** Often includes free tier models
 
 ## 🔒 Privacy & Security
 
-- **Local Storage:** All conversations stored in browser's IndexedDB
-- **No Server Logging:** Conversations never stored on servers
-- **API Key Security:** User keys encrypted and stored locally
-- **Host Key Security:** Server-side only, never exposed to client
-- **HTTPS:** All API communications encrypted in transit
+### Data Storage
+- **Authenticated**: Conversations stored securely in Convex
+- **Guest Mode**: Temporary storage in browser memory only
+- **No Server Logging**: Host doesn't log conversation contents
+- **User Control**: Delete conversations anytime
+
+### API Key Security
+- **User Keys**: Encrypted and stored locally in browser
+- **Host Keys**: Server-side only, never exposed to client
+- **Transmission**: All communications use HTTPS
+- **Isolation**: User and host keys kept separate
+
+### Authentication
+- **Google OAuth**: Secure authentication flow
+- **Custom JWT**: Convex-managed authentication tokens
+- **No Password Storage**: OAuth-only authentication
+- **Session Management**: Secure token handling
 
 ## 📄 License
 
@@ -212,17 +341,19 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
+- [Convex](https://convex.dev/) for the real-time backend platform
 - [Vercel AI SDK](https://sdk.vercel.ai/) for AI provider integration
 - [shadcn/ui](https://ui.shadcn.com/) for beautiful UI components
 - [Zustand](https://zustand-demo.pmnd.rs/) for state management
-- [Dexie](https://dexie.org/) for local database management
+- [Next.js](https://nextjs.org/) for the React framework
 
 ## 📞 Support
 
 - 🐛 **Bug Reports:** [Open an issue](https://github.com/your-username/chat-studio/issues)
 - 💡 **Feature Requests:** [Open an issue](https://github.com/your-username/chat-studio/issues)
 - 💬 **Discussions:** [GitHub Discussions](https://github.com/your-username/chat-studio/discussions)
+- 📖 **Documentation:** [Convex Setup Guide](./CONVEX_SETUP.md)
 
 ---
 
-**Made with ❤️ by the Johannes du Plessis**
+**Made with ❤️ by Johannes du Plessis**

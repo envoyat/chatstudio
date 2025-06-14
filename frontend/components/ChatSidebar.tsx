@@ -13,22 +13,61 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { deleteThread, getThreads } from "@/frontend/storage/queries"
-import { useLiveQuery, triggerUpdate } from "@/frontend/hooks/useLiveQuery"
 import { Link, useNavigate, useLocation } from "react-router-dom"
-import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react"
+import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { memo } from "react"
+import { Authenticated, Unauthenticated, useConvexAuth } from "convex/react"
+import { SignInButton, UserButton, useUser } from "@clerk/nextjs"
+import { useThreads, useDeleteThread } from "@/lib/convex-hooks"
+import { convertConvexThread } from "@/lib/convex-storage"
+import type { Id } from "@/convex/_generated/dataModel"
+import { ROUTES } from "@/frontend/constants/routes"
+import { MESSAGE_ROLES } from "@/convex/constants"
+
+// A simple spinner component for the sidebar.
+const StreamingSpinner = () => (
+  <Loader2 size={16} className="animate-spin text-primary" />
+);
 
 export default function ChatSidebar() {
   const navigate = useNavigate()
   const location = useLocation()
-  const threads = useLiveQuery(() => getThreads(), [])
   const { state, toggle } = useSidebar()
+  const { isAuthenticated } = useConvexAuth()
+
+  // Use the updated hook which now includes last message info.
+  const convexThreads = useThreads()
+  const deleteThreadMutation = useDeleteThread()
+
+  // Convert Convex threads to app format - but keep the original data for streaming check
+  const threads = React.useMemo(() => {
+    if (!isAuthenticated || !convexThreads) return []
+    return convexThreads.map(thread => ({
+      ...convertConvexThread(thread),
+      lastMessage: thread.lastMessage // Keep the lastMessage for streaming check
+    }))
+  }, [convexThreads, isAuthenticated])
 
   // Extract thread ID from various possible paths
   const currentThreadId = location.pathname.includes("/chat/") ? location.pathname.split("/chat/")[1] : null
   const isCollapsed = state === "collapsed"
+
+  const handleDeleteThread = async (convexThreadId: Id<"threads">, event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    
+    if (isAuthenticated) {
+      // Use Convex mutation for authenticated users
+      try {
+        // Pass the actual Convex ID
+        await deleteThreadMutation({ threadId: convexThreadId })
+        navigate(ROUTES.CHAT)
+      } catch (error) {
+        console.error('Failed to delete thread:', error)
+      }
+    }
+  }
 
   return (
     <>
@@ -40,46 +79,71 @@ export default function ChatSidebar() {
       >
         <Header />
         <SidebarContent className="flex-1 overflow-y-auto overflow-x-hidden">
-          <SidebarGroup className="px-0">
-            <SidebarGroupContent>
-              <SidebarMenu className="space-y-1">
-                {threads?.map((thread) => {
-                  return (
-                    <SidebarMenuItem key={thread.id}>
-                      <div
-                        className={cn(
-                          "cursor-pointer group/thread h-10 flex items-center px-2 py-2 rounded-lg overflow-hidden w-full transition-colors hover:bg-primary/10",
-                          currentThreadId === thread.id && "bg-primary/15",
-                        )}
-                        onClick={() => {
-                          if (currentThreadId === thread.id) {
-                            return
-                          }
-                          navigate(`/chat/${thread.id}`)
-                        }}
-                      >
-                        <span className="truncate text-sm font-medium flex-1">{thread.title}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="opacity-0 group-hover/thread:opacity-100 transition-opacity ml-2 h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                          onClick={async (event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            await deleteThread(thread.id)
-                            triggerUpdate()
-                            navigate(`/chat`)
+          <Authenticated>
+            <SidebarGroup className="px-0">
+              <SidebarGroupContent>
+                <SidebarMenu className="space-y-1">
+                  {threads?.map((thread) => {
+                    // Logic for streaming state
+                    const isStreaming = thread.lastMessage?.role === MESSAGE_ROLES.ASSISTANT && thread.lastMessage.isComplete === false;
+                    
+                    return (
+                      <SidebarMenuItem key={thread.id}>
+                        <div
+                          className={cn(
+                            "cursor-pointer group/thread h-10 flex items-center px-2 py-2 rounded-lg overflow-hidden w-full transition-colors hover:bg-primary/10",
+                            currentThreadId === thread.id && "bg-primary/15",
+                          )}
+                          onClick={() => {
+                            if (currentThreadId === thread.id) {
+                              return
+                            }
+                            navigate(ROUTES.CHAT_THREAD(thread.id))
                           }}
                         >
-                          <X size={14} />
-                        </Button>
-                      </div>
-                    </SidebarMenuItem>
-                  )
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+                          <span className="truncate text-sm font-medium flex-1">{thread.title}</span>
+                          
+                          {/* Conditional spinner */}
+                          {isStreaming ? (
+                            <div className="flex items-center gap-2">
+                              <StreamingSpinner />
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="opacity-0 group-hover/thread:opacity-100 transition-opacity ml-2 h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                              onClick={(event) => handleDeleteThread(thread._id, event)}
+                            >
+                              <X size={14} />
+                            </Button>
+                          )}
+                        </div>
+                      </SidebarMenuItem>
+                    )
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </Authenticated>
+          
+          <Unauthenticated>
+            <SidebarGroup className="px-4">
+              <div className="flex flex-col items-center justify-center text-center py-8 px-4">
+                <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="font-semibold text-lg mb-2">Login to Save Chat Threads</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Sign in with Google to save your conversations and access them from any device.
+                </p>
+                <SignInButton mode="modal">
+                  <Button size="sm" className="gap-2">
+                    <LogIn size={16} />
+                    Sign In
+                  </Button>
+                </SignInButton>
+              </div>
+            </SidebarGroup>
+          </Unauthenticated>
         </SidebarContent>
         <Footer />
       </Sidebar>
@@ -113,7 +177,7 @@ function PureHeader() {
       </div>
       
       <Link
-        to="/chat"
+        to={ROUTES.CHAT}
         className={cn(
           buttonVariants({
             variant: "default",
@@ -132,21 +196,52 @@ function PureHeader() {
 const Header = memo(PureHeader)
 
 const PureFooter = () => {
+  const navigate = useNavigate()
+  const { user } = useUser()
+
   return (
-    <SidebarFooter className="border-t p-4">
-      <Link 
-        to="/settings" 
-        className={cn(
-          buttonVariants({ 
-            variant: "outline",
-            size: "sm"
-          }),
-          "w-full justify-center gap-2 h-9"
-        )}
-      >
-        <Settings size={16} />
-        Settings
-      </Link>
+    <SidebarFooter className="border-t p-4 space-y-2">
+      <Authenticated>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-3 h-12 p-3 hover:bg-accent/50"
+          onClick={() => navigate(ROUTES.SETTINGS)}
+        >
+          <UserButton 
+            appearance={{
+              elements: {
+                avatarBox: "w-8 h-8"
+              }
+            }}
+          />
+          <div className="flex flex-col items-start min-w-0 flex-1">
+            <span className="text-sm font-medium truncate w-full">
+              {user?.fullName || user?.firstName || "User"}
+            </span>
+            <span className="text-xs text-muted-foreground truncate w-full">
+              {user?.primaryEmailAddress?.emailAddress}
+            </span>
+          </div>
+          <Settings size={16} className="text-muted-foreground" />
+        </Button>
+      </Authenticated>
+      
+      <Unauthenticated>
+        <Link 
+          to={ROUTES.SETTINGS} 
+          className={cn(
+            buttonVariants({ 
+              variant: "outline",
+              size: "sm"
+            }),
+            "w-full justify-center gap-2 h-9"
+          )}
+        >
+          <Settings size={16} />
+          Settings
+        </Link>
+      </Unauthenticated>
     </SidebarFooter>
   )
 }

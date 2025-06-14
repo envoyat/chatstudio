@@ -5,94 +5,68 @@ import MarkdownRenderer from "@/frontend/components/MemoizedMarkdown"
 import { cn } from "@/lib/utils"
 import type { UIMessage } from "ai"
 import equal from "fast-deep-equal"
+import type { Id } from "@/convex/_generated/dataModel"
 import MessageControls from "./MessageControls"
-import type { UseChatHelpers } from "@ai-sdk/react"
 import MessageEditor from "./MessageEditor"
-import MessageReasoning from "./MessageReasoning"
+import { MESSAGE_ROLES } from "@/convex/constants"
 
 function PureMessage({
-  threadId,
   message,
-  setMessages,
-  reload,
-  isStreaming,
-  stop,
+  messages,
+  convexThreadId,
 }: {
-  threadId: string
   message: UIMessage
-  setMessages: UseChatHelpers["setMessages"]
-  reload: UseChatHelpers["reload"]
-  isStreaming: boolean
-  stop: UseChatHelpers["stop"]
+  messages: UIMessage[]
+  convexThreadId: Id<"threads"> | null
 }) {
   const [mode, setMode] = useState<"view" | "edit">("view")
 
+  const isStreaming = message.role === MESSAGE_ROLES.ASSISTANT && (message.data as { isComplete?: boolean })?.isComplete === false;
+
+  const handleSetMode = (newMode: "view" | "edit") => {
+    // Prevent editing a message if another one is currently streaming.
+    if (isStreaming && newMode === "edit") return;
+    setMode(newMode);
+  }
+
   return (
-    <div role="article" className={cn("flex flex-col", message.role === "user" ? "items-end" : "items-start")}>
-      {message.parts.map((part, index) => {
-        const { type } = part
-        const key = `message-${message.id}-part-${index}`
-
-        if (type === "reasoning") {
-          return <MessageReasoning key={key} reasoning={part.reasoning} id={message.id} />
-        }
-
-        if (type === "text") {
-          return message.role === "user" ? (
-            <div
-              key={key}
-              className="relative group px-4 py-3 rounded-xl bg-secondary border border-secondary-foreground/2 max-w-[80%]"
-            >
-              {mode === "edit" && (
-                <MessageEditor
-                  threadId={threadId}
-                  message={message}
-                  content={part.text}
-                  setMessages={setMessages}
-                  reload={reload}
-                  setMode={setMode}
-                  stop={stop}
-                />
-              )}
-              {mode === "view" && <p>{part.text}</p>}
-
-              {mode === "view" && (
-                <MessageControls
-                  threadId={threadId}
-                  content={part.text}
-                  message={message}
-                  setMode={setMode}
-                  setMessages={setMessages}
-                  reload={reload}
-                  stop={stop}
-                />
-              )}
-            </div>
-          ) : (
-            <div key={key} className="group flex flex-col gap-2 w-full">
-              <MarkdownRenderer content={part.text} id={message.id} />
-              {!isStreaming && (
-                <MessageControls
-                  threadId={threadId}
-                  content={part.text}
-                  message={message}
-                  setMessages={setMessages}
-                  reload={reload}
-                  stop={stop}
-                />
-              )}
-            </div>
-          )
-        }
-      })}
+    <div role="article" className={cn("flex flex-col", message.role === MESSAGE_ROLES.USER ? "items-end" : "items-start")}>
+      <div
+        className={cn(
+          "group relative px-4 py-3 rounded-xl",
+          message.role === MESSAGE_ROLES.USER 
+            ? "bg-secondary border border-secondary-foreground/2 max-w-[80%]" 
+            : "w-full"
+        )}
+      >
+        {mode === "edit" ? (
+          <MessageEditor
+            message={message}
+            setMode={setMode}
+            convexThreadId={convexThreadId}
+          />
+        ) : (
+          <MarkdownRenderer content={message.content} id={message.id} />
+        )}
+        
+        {/* Render controls only when not editing and not streaming */}
+        {mode === "view" && !isStreaming && (
+          <MessageControls
+            message={message}
+            messages={messages}
+            setMode={handleSetMode}
+            convexThreadId={convexThreadId}
+          />
+        )}
+      </div>
     </div>
   )
 }
 
 const PreviewMessage = memo(PureMessage, (prevProps, nextProps) => {
-  if (prevProps.isStreaming !== nextProps.isStreaming) return false
-  if (prevProps.message.id !== nextProps.message.id) return false
-  if (!equal(prevProps.message.parts, nextProps.message.parts)) return false
+  if (prevProps.convexThreadId !== nextProps.convexThreadId) return false
+  if (!equal(prevProps.message, nextProps.message)) return false
+  if (!equal(prevProps.messages, nextProps.messages)) return false
   return true
 })
 

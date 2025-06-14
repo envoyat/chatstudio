@@ -5,6 +5,7 @@ import "./globals.css"
 import "katex/dist/katex.min.css"
 import { Toaster } from "sonner"
 import { ThemeProvider } from "@/components/ui/theme-provider"
+import { ConvexClientProvider } from "@/lib/convex"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -13,7 +14,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Chat Studio",
-  description: "Fast AI Chat App"
+  description: "Advanced AI Chat App"
 }
 
 export default function RootLayout({
@@ -24,10 +25,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          {children}
-          <Toaster richColors position="top-right" />
-        </ThemeProvider>
+        <ConvexClientProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+            {children}
+            <Toaster richColors position="top-right" />
+          </ThemeProvider>
+        </ConvexClientProvider>
       </body>
     </html>
   )
