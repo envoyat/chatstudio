@@ -17,6 +17,7 @@ interface ChatRunSettingsProps {
 
 export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
   const { isSettingsOpen, setSettingsOpen, isSidebarOpen } = useUILayoutStore()
+  const settingsRef = React.useRef<HTMLDivElement>(null)
   
   const {
     temperature,
@@ -32,6 +33,20 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
     const newMaxTokens = getModelTokenLimit(selectedModel)
     useChatRunSettingsStore.getState().setMaxTokens(newMaxTokens)
   }, [selectedModel])
+
+  // Handle click outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isSettingsOpen && settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+        setSettingsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isSettingsOpen, setSettingsOpen])
 
   const handleTemperatureChange = (value: number[]) => {
     setTemperature(value[0])
@@ -81,6 +96,7 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
 
       {/* Side Panel */}
       <div
+        ref={settingsRef}
         className={`fixed right-0 top-0 z-[100] h-full transition-transform duration-300 ease-in-out ${
           isSettingsOpen ? 'translate-x-0' : 'translate-x-full'
         }`}

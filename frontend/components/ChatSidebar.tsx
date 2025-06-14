@@ -37,6 +37,7 @@ export default function ChatSidebar() {
   const { state, toggle } = useSidebar()
   const { isAuthenticated } = useConvexAuth()
   const { isSettingsOpen, setSettingsOpen, isSidebarOpen, setSidebarOpen } = useUILayoutStore()
+  const sidebarRef = React.useRef<HTMLDivElement>(null)
 
   // Use the updated hook which now includes last message info.
   const convexThreads = useThreads()
@@ -59,6 +60,20 @@ export default function ChatSidebar() {
   React.useEffect(() => {
     setSidebarOpen(!isCollapsed)
   }, [isCollapsed, setSidebarOpen])
+
+  // Handle click outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!isCollapsed && sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
+        toggle()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isCollapsed, toggle])
 
   const handleDeleteThread = async (convexThreadId: Id<"threads">, event: React.MouseEvent) => {
     event.preventDefault()
@@ -91,6 +106,7 @@ export default function ChatSidebar() {
   return (
     <>
       <Sidebar
+        ref={sidebarRef}
         className={cn(
           "transition-all duration-300 ease-in-out overflow-hidden",
           isCollapsed ? "w-0" : "w-64",
