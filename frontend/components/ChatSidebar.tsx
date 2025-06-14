@@ -24,6 +24,7 @@ import { convertConvexThread } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
 import { ROUTES } from "@/frontend/constants/routes"
 import { MESSAGE_ROLES } from "@/convex/constants"
+import { useUILayoutStore } from "@/frontend/stores/UILayoutStore"
 
 // A simple spinner component for the sidebar.
 const StreamingSpinner = () => (
@@ -35,6 +36,8 @@ export default function ChatSidebar() {
   const location = useLocation()
   const { state, toggle } = useSidebar()
   const { isAuthenticated } = useConvexAuth()
+  const { isSettingsOpen, setSettingsOpen, isSidebarOpen, setSidebarOpen } = useUILayoutStore()
+  const sidebarRef = React.useRef<HTMLDivElement>(null)
 
   // Use the updated hook which now includes last message info.
   const convexThreads = useThreads()
@@ -53,6 +56,25 @@ export default function ChatSidebar() {
   const currentThreadId = location.pathname.includes("/chat/") ? location.pathname.split("/chat/")[1] : null
   const isCollapsed = state === "collapsed"
 
+  // Sync sidebar state with store
+  React.useEffect(() => {
+    setSidebarOpen(!isCollapsed)
+  }, [isCollapsed, setSidebarOpen])
+
+  // Handle click outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!isCollapsed && sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
+        toggle()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isCollapsed, toggle])
+
   const handleDeleteThread = async (convexThreadId: Id<"threads">, event: React.MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
@@ -69,9 +91,22 @@ export default function ChatSidebar() {
     }
   }
 
+  // Handle sidebar toggle
+  const handleSidebarToggle = () => {
+    toggle()
+  }
+
+  // Only close settings when sidebar is explicitly opened
+  React.useEffect(() => {
+    if (!isCollapsed && isSettingsOpen) {
+      setSettingsOpen(false)
+    }
+  }, [isCollapsed, isSettingsOpen, setSettingsOpen])
+
   return (
     <>
       <Sidebar
+        ref={sidebarRef}
         className={cn(
           "transition-all duration-300 ease-in-out overflow-hidden",
           isCollapsed ? "w-0" : "w-64",
@@ -152,11 +187,11 @@ export default function ChatSidebar() {
         variant="ghost"
         size="icon"
         className={cn(
-          "fixed top-3 z-50 h-8 w-8 rounded-full bg-background/50 backdrop-blur-sm",
+          "fixed top-3 z-[45] h-8 w-8 rounded-full bg-background/50 backdrop-blur-sm",
           "transition-all duration-300 ease-in-out",
           isCollapsed ? "left-3" : "left-[16.5rem]",
         )}
-        onClick={toggle}
+        onClick={handleSidebarToggle}
       >
         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
       </Button>

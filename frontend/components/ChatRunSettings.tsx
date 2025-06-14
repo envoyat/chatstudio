@@ -9,13 +9,15 @@ import { Settings2, ChevronRight, X } from "lucide-react"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getModelTokenLimit } from "@/lib/token-limits"
+import { useUILayoutStore } from "@/frontend/stores/UILayoutStore"
 
 interface ChatRunSettingsProps {
   className?: string
 }
 
 export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
-  const [isOpen, setIsOpen] = useState(false)
+  const { isSettingsOpen, setSettingsOpen, isSidebarOpen } = useUILayoutStore()
+  const settingsRef = React.useRef<HTMLDivElement>(null)
   
   const {
     temperature,
@@ -31,6 +33,20 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
     const newMaxTokens = getModelTokenLimit(selectedModel)
     useChatRunSettingsStore.getState().setMaxTokens(newMaxTokens)
   }, [selectedModel])
+
+  // Handle click outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isSettingsOpen && settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+        setSettingsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isSettingsOpen, setSettingsOpen])
 
   const handleTemperatureChange = (value: number[]) => {
     setTemperature(value[0])
@@ -53,18 +69,26 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
   const isAtLimit = tokenUsagePercentage > 95
 
   const togglePanel = () => {
-    setIsOpen(!isOpen)
+    console.log('Toggle clicked, current state:', isSettingsOpen)
+    const newSettingsState = !isSettingsOpen
+    console.log('Setting new state to:', newSettingsState)
+    setSettingsOpen(newSettingsState)
   }
+
+  // Debug effect to monitor state changes
+  React.useEffect(() => {
+    console.log('Settings panel state changed:', isSettingsOpen)
+  }, [isSettingsOpen])
 
   return (
     <>
-      {/* Toggle Button - Positioned based on panel state */}
-      {!isOpen && (
+      {/* Toggle Button - Only show when sidebar is closed */}
+      {!isSettingsOpen && !isSidebarOpen && (
         <Button
           onClick={togglePanel}
           variant="outline"
           size="sm"
-          className="fixed right-4 top-4 z-20 bg-background/95 backdrop-blur-sm border shadow-md hover:shadow-lg"
+          className="fixed right-4 top-4 z-[60] bg-background/95 backdrop-blur-sm border shadow-md hover:shadow-lg"
         >
           <Settings2 className="h-4 w-4" />
         </Button>
@@ -72,8 +96,9 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
 
       {/* Side Panel */}
       <div
-        className={`fixed right-0 top-0 z-50 h-full transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
+        ref={settingsRef}
+        className={`fixed right-0 top-0 z-[100] h-full transition-transform duration-300 ease-in-out ${
+          isSettingsOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ width: '320px' }}
       >
@@ -183,10 +208,10 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
         </div>
 
         {/* Overlay when panel is open (optional, for mobile) */}
-        {isOpen && (
+        {isSettingsOpen && (
           <div 
             className="fixed inset-0 bg-black/20 backdrop-blur-sm -z-10 md:hidden"
-            onClick={() => setIsOpen(false)}
+            onClick={() => setSettingsOpen(false)}
           />
         )}
       </div>
