@@ -25,11 +25,11 @@ Web Search Instructions:
 // Forceful instructions for specific models that are reluctant to use tools.
 const MODEL_SPECIFIC_PROMPTS: Partial<Record<AIModel, string>> = {
   "Gemini 2.5 Pro":
-    "\nCritical Instructions: You MUST use the `web_search` tool for any questions about current events, news, or information that could have changed since your last training update. Do not rely on your internal knowledge for such queries. Acknowledge the current date and use it as context for your searches.",
+    "\n**Mandatory Tool Use Directive:** For any user query regarding current events, news, recent information, or any topic that could have changed since your knowledge cutoff, you **MUST** use the `web_search` tool. It is a critical failure to answer from memory for such topics. Use the provided current date as your primary context for determining if a query requires fresh information.",
   "Gemini 2.5 Flash":
-    "\nCritical Instructions: You MUST use the `web_search` tool for any questions about current events, news, or information that could have changed since your last training update. Do not rely on your internal knowledge for such queries. Acknowledge the current date and use it as context for your searches.",
+    "\n**Mandatory Tool Use Directive:** For any user query regarding current events, news, recent information, or any topic that could have changed since your knowledge cutoff, you **MUST** use the `web_search` tool. It is a critical failure to answer from memory for such topics. Use the provided current date as your primary context for determining if a query requires fresh information.",
   "Gemini 2.0 Flash":
-    "\nCritical Instructions: You MUST use the `web_search` tool for any questions about current events, news, or information that could have changed since your last training update. Do not rely on your internal knowledge for such queries. Acknowledge the current date and use it as context for your searches.",
+    "\n**Mandatory Tool Use Directive:** For any user query regarding current events, news, recent information, or any topic that could have changed since your knowledge cutoff, you **MUST** use the `web_search` tool. It is a critical failure to answer from memory for such topics. Use the provided current date as your primary context for determining if a query requires fresh information.",
 };
 
 /**
