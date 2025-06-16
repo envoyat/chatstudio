@@ -19,12 +19,49 @@ function PureMessage({
   message: UIMessage
   messages: UIMessage[]
   convexConversationId: Id<"conversations"> | null
-}) {
-  const [mode, setMode] = useState<"view" | "edit">("view")
+}) { 
+  const [mode, setMode] = useState<"view" | "edit">("view");
 
-  const isStreaming = message.role === MESSAGE_ROLES.ASSISTANT && (message.data as { isComplete?: boolean })?.isComplete === false;
-  const toolCalls = (message.data as { toolCalls?: any[] })?.toolCalls
-  const toolOutputs = (message.data as { toolOutputs?: any[] })?.toolOutputs
+  const isStreaming = message.role === 'assistant' && (message.data as any)?.isComplete === false;
+
+  // Pre-process parts to group consecutive tool calls
+  const renderedBlocks = [];
+  let currentToolCalls: any[] = [];
+
+  for (const part of message.parts ?? []) {
+    const partData = part as any; // Type assertion for our custom parts
+    if (partData.type === 'tool-call') {
+      currentToolCalls.push(partData);
+    } else {
+      // We hit a non-tool part, so render any collected tools first
+      if (currentToolCalls.length > 0) {
+        const toolOutputs = (message.parts || []).filter((p: any) => p.type === 'tool-result' && currentToolCalls.some(c => c.id === p.toolCallId)) as any[];
+        renderedBlocks.push(
+          <ToolCallDisplay 
+            key={`tool-block-${renderedBlocks.length}`}
+            toolCalls={currentToolCalls}
+            toolOutputs={toolOutputs} 
+          />
+        );
+        currentToolCalls = [];
+      }
+      
+      // Then render the current part (only text for now)
+      if (partData.type === 'text' && partData.text) {
+        renderedBlocks.push(
+          <MarkdownRenderer key={`text-block-${renderedBlocks.length}`} content={partData.text} id={`${message.id}-${renderedBlocks.length}`} />
+        );
+      }
+    }
+  }
+
+  // Render any remaining tools at the end
+  if (currentToolCalls.length > 0) {
+    const toolOutputs = (message.parts || []).filter((p: any) => p.type === 'tool-result' && currentToolCalls.some(c => c.id === p.toolCallId)) as any[];
+    renderedBlocks.push(
+      <ToolCallDisplay key={`tool-block-final`} toolCalls={currentToolCalls} toolOutputs={toolOutputs} />
+    );
+  }
 
   const handleSetMode = (newMode: "view" | "edit") => {
     if (isStreaming && newMode === "edit") return;
@@ -48,16 +85,14 @@ function PureMessage({
             convexConversationId={convexConversationId}
           />
         ) : (
-          <>
-            {toolCalls && toolCalls.length > 0 ? (
-              <ToolCallDisplay toolCalls={toolCalls} toolOutputs={toolOutputs} />
-            ) : (
-              message.content && <MarkdownRenderer content={message.content} id={message.id} />
-            )}
-          </>
+          // Render the processed blocks
+          renderedBlocks.map((block, i) => <div key={i}>{block}</div>)
         )}
         
-        {mode === "view" && !isStreaming && (!toolCalls || toolCalls.length === 0) && (
+        {mode === "view" && !isStreaming && (
+          // Only show controls if there's some text content to control
+          (message.parts || []).some((p: any) => p.type === 'text' && p.text?.trim() !== '')
+        ) && (
           <MessageControls
             message={message}
             messages={messages}

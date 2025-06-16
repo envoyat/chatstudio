@@ -229,70 +229,60 @@ export const chat = internalAction({
         maxSteps: 5,
       });
 
-      let activeMessageId = assistantMessageId;
-      let body = ""; 
-      let currentToolCalls: any[] = [];
-      let currentToolOutputs: any[] = [];
-      let state: 'text' | 'tool' = 'text';
+      let parts: (
+        | { type: 'text'; text: string }
+        | { type: 'tool-call'; id: string; name: string; args: any }
+        | { type: 'tool-result'; toolCallId: string; result: any }
+      )[] = [];
+      
+      const updateMessage = async () => {
+        const content = parts
+          .filter((part) => part.type === 'text')
+          .map((part) => (part as { type: 'text'; text: string }).text)
+          .join('');
+
+        // Separate tool calls and results for structured storage
+        const toolCalls = parts.filter(part => part.type === 'tool-call');
+        const toolOutputs = parts.filter(part => part.type === 'tool-result');
+
+        await ctx.runMutation(internal.messages.update, {
+          messageId: assistantMessageId,
+          content,
+          parts,
+          toolCalls,
+          toolOutputs,
+        });
+      };
 
       for await (const part of result.fullStream) {
         switch (part.type) {
           case 'text-delta': {
-            if (state === 'tool') {
-              // Finished with tools, now getting a text response.
-              await ctx.runMutation(internal.messages.finaliseToolMessage, { messageId: activeMessageId });
-              
-              // Create a new message for this text response.
-              activeMessageId = await ctx.runMutation(internal.messages.internalCreate, {
-                  conversationId: conversationId, role: MESSAGE_ROLES.ASSISTANT, content: ""
-              });
-              body = "";
-              currentToolCalls = [];
-              currentToolOutputs = [];
-              state = 'text';
+            const lastPart = parts[parts.length - 1];
+            if (lastPart?.type === 'text') {
+              lastPart.text += part.textDelta;
+            } else {
+              parts.push({ type: 'text', text: part.textDelta });
             }
-            body += part.textDelta;
-            await ctx.runMutation(internal.messages.update, {
-              messageId: activeMessageId,
-              content: body,
-            });
+            await updateMessage();
             break;
           }
           case 'tool-call': {
-            if (state === 'text' && body.length > 0) {
-              // Pre-amble text exists. Finalize it.
-              await ctx.runMutation(internal.messages.finalise, { messageId: activeMessageId, content: body });
-
-              // Create a new message for the tool call
-              activeMessageId = await ctx.runMutation(internal.messages.internalCreate, {
-                  conversationId: conversationId, role: MESSAGE_ROLES.ASSISTANT, content: ""
-              });
-              body = "";
-            }
-            state = 'tool';
-            
-            currentToolCalls.push({
-              id: part.toolCallId, 
+            parts.push({
+              type: 'tool-call',
+              id: part.toolCallId,
               name: part.toolName,
-              args: JSON.stringify(part.args),
+              args: part.args,
             });
-
-            await ctx.runMutation(internal.messages.update, {
-              messageId: activeMessageId,
-              toolCalls: currentToolCalls,
-            });
+            await updateMessage();
             break;
           }
           case 'tool-result': {
-            currentToolOutputs.push({
-                toolCallId: part.toolCallId,
-                toolName: part.toolName,
-                result: part.result
+            parts.push({
+              type: 'tool-result',
+              toolCallId: part.toolCallId,
+              result: part.result,
             });
-            await ctx.runMutation(internal.messages.update, {
-              messageId: activeMessageId,
-              toolOutputs: currentToolOutputs,
-            });
+            await updateMessage();
             console.log(`[ai.chat] Tool result for ${part.toolName}:`, part.result);
             break;
           }
@@ -303,12 +293,15 @@ export const chat = internalAction({
         }
       }
 
-      // Finalize the very last message
-      if (state === 'text') {
-        await ctx.runMutation(internal.messages.finalise, { messageId: activeMessageId, content: body });
-      } else { // state === 'tool'
-        await ctx.runMutation(internal.messages.finaliseToolMessage, { messageId: activeMessageId });
-      }
+      const finalContent = parts
+        .filter((part) => part.type === 'text')
+        .map((part) => (part as { type: 'text'; text: string }).text)
+        .join('');
+
+      await ctx.runMutation(internal.messages.finalise, {
+        messageId: assistantMessageId,
+        content: finalContent,
+      });
     } catch (e: any) {
       const errorMessage = e.message || "An unknown error occurred";
       console.error(`[ai.chat] ACTION FAILED: ${errorMessage}`, e);

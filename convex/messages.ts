@@ -105,13 +105,15 @@ export const list = query({
 export const update = internalMutation({
   args: { 
     messageId: v.id("messages"), 
+    parts: v.optional(v.any()),
     content: v.optional(v.string()),
     toolCalls: v.optional(v.any()),
     toolOutputs: v.optional(v.any()),
   },
   returns: v.null(),
-  handler: async (ctx, { messageId, content, toolCalls, toolOutputs }) => {
+  handler: async (ctx, { messageId, parts, content, toolCalls, toolOutputs }) => {
     const updates: any = {};
+    if (parts !== undefined) updates.parts = parts;
     if (content !== undefined) updates.content = content;
     if (toolCalls !== undefined) updates.toolCalls = toolCalls;
     if (toolOutputs !== undefined) updates.toolOutputs = toolOutputs;
@@ -128,39 +130,10 @@ export const finalise = internalMutation({
     await ctx.db.patch(messageId, {
       content,
       isComplete: true,
-      toolCalls: undefined, // Clear tool call data on finalization for text messages
-      toolOutputs: undefined,
+      // We no longer clear tool calls/outputs on finalise,
+      // as they are part of the final message state.
     });
     return null;
-  },
-});
-
-export const finaliseToolMessage = internalMutation({
-  args: { messageId: v.id("messages") },
-  returns: v.null(),
-  handler: async (ctx, { messageId }) => {
-    await ctx.db.patch(messageId, {
-      isComplete: true,
-    });
-    return null;
-  },
-});
-
-export const internalCreate = internalMutation({
-  args: {
-    conversationId: v.id("conversations"),
-    role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
-    content: v.string(),
-  },
-  returns: v.id("messages"),
-  handler: async (ctx, { conversationId, role, content }) => {
-    return await ctx.db.insert("messages", {
-      conversationId,
-      content,
-      role,
-      createdAt: Date.now(),
-      isComplete: false,
-    });
   },
 });
 

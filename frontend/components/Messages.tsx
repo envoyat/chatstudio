@@ -10,21 +10,35 @@ function PureMessages({
   isStreaming,
   convexConversationId,
 }: {
-  messages: UIMessage[]
-  isStreaming: boolean
-  convexConversationId: Id<"conversations"> | null
+  messages: UIMessage[];
+  isStreaming: boolean;
+  convexConversationId: Id<"conversations"> | null;
 }) {
   return (
-    <section className="flex flex-col space-y-12">
-      {messages.map((message) => (
-        <PreviewMessage
-          key={message.id}
-          message={message}
-          messages={messages}
-          convexConversationId={convexConversationId}
-        />
-      ))}
-      {isStreaming && messages[messages.length - 1]?.content === "" && <MessageLoading />}
+    <section className="flex flex-col">
+      {messages.map((message, index) => {
+        const prevMessage = messages[index - 1];
+
+        let marginTopClass = 'mt-12'; // Default large gap
+
+        if (index > 0 && message.role === 'assistant' && prevMessage?.role === 'assistant') {
+          // If this assistant message follows another assistant message (e.g., text -> tool_call -> text), reduce the gap.
+          marginTopClass = 'mt-2';
+        } else if (index === 0) {
+          marginTopClass = ''; // No margin for the first message
+        }
+
+        return (
+          <div key={message.id} className={marginTopClass}>
+            <PreviewMessage message={message} messages={messages} convexConversationId={convexConversationId} />
+          </div>
+        );
+      })}
+      {isStreaming && messages[messages.length - 1]?.content === "" && (!(messages[messages.length - 1].data as { toolCalls?: any[] })?.toolCalls || (messages[messages.length - 1].data as { toolCalls?: any[] })?.toolCalls?.length === 0) && (
+        <div className="mt-2">
+          <MessageLoading />
+        </div>
+      )}
     </section>
   )
 }

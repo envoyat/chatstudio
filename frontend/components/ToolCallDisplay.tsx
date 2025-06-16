@@ -4,11 +4,12 @@ import { memo } from "react";
 interface ToolCall {
   id: string;
   name: string;
-  args: string;
+  args: any; // Now it's an object from ai.ts
 }
 
 interface ToolOutput {
   toolCallId: string;
+  result: any;
 }
 
 interface ToolCallDisplayProps {
@@ -45,7 +46,7 @@ function PureToolCallDisplay({ toolCalls, toolOutputs = [] }: ToolCallDisplayPro
             <div className="flex flex-col items-start font-semibold text-foreground">
               {webSearches.map((call, index) => {
                 try {
-                  const args = JSON.parse(call.args);
+                  const args = typeof call.args === 'string' ? JSON.parse(call.args) : call.args;
                   return <span key={index}>"{args.query}"</span>;
                 } catch (e) {
                   return null;
