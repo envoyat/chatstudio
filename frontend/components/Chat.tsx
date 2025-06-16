@@ -64,6 +64,9 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
 
   return (
     <div className="relative w-full h-screen flex flex-col">
+      {/* ChatRunSettings positioned absolutely in top right corner */}
+      <ChatRunSettings />
+      
       <main className="flex-1 overflow-y-auto">
         <div className="w-full max-w-3xl pt-10 pb-44 mx-auto px-4">
           <Messages
@@ -83,8 +86,6 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
           />
         </div>
       </div>
-      
-      <ChatRunSettings />
     </div>
   )
 }

@@ -82,13 +82,13 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
 
   return (
     <>
-      {/* Toggle Button - Only show when sidebar is closed */}
-      {!isSettingsOpen && !isSidebarOpen && (
+      {/* Toggle Button - Always visible on all screen sizes */}
+      {!isSettingsOpen && (
         <Button
           onClick={togglePanel}
-          variant="outline"
-          size="sm"
-          className="fixed right-4 top-4 z-[60] bg-background/95 backdrop-blur-sm border shadow-md hover:shadow-lg"
+          variant="ghost"
+          size="icon"
+          className="fixed right-4 top-4 z-[60] h-8 w-8 rounded-full transition-all duration-300 ease-in-out"
         >
           <Settings2 className="h-4 w-4" />
         </Button>
