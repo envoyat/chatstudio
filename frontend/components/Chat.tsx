@@ -66,25 +66,28 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
     <div className="relative w-full h-screen flex">
       {/* Main content area */}
       <div className="flex-1 flex flex-col">
-        <main className="flex-1 overflow-y-auto">
-          <div className="w-full max-w-3xl pt-10 pb-44 mx-auto px-4">
-            <Messages
-              messages={messages}
-              isStreaming={isStreaming}
-              convexThreadId={convexThreadId}
-            />
+        <main className="flex-1 overflow-y-auto relative">
+          <div className="w-full max-w-3xl mx-auto px-4">
+            {/* Messages with padding to account for sticky input */}
+            <div className="pt-10 pb-32">
+              <Messages
+                messages={messages}
+                isStreaming={isStreaming}
+                convexThreadId={convexThreadId}
+              />
+            </div>
+            
+            {/* Sticky ChatInput at bottom */}
+            <div className="sticky bottom-0 pb-4">
+              <ChatInput
+                threadId={initialThreadUuid}
+                convexThreadId={convexThreadId}
+                onConvexThreadIdChange={setConvexThreadId}
+                isStreaming={isStreaming}
+              />
+            </div>
           </div>
         </main>
-        <div className="absolute bottom-0 left-0 right-0">
-          <div className="w-full max-w-3xl mx-auto px-4 pb-4">
-            <ChatInput
-              threadId={initialThreadUuid}
-              convexThreadId={convexThreadId}
-              onConvexThreadIdChange={setConvexThreadId}
-              isStreaming={isStreaming}
-            />
-          </div>
-        </div>
       </div>
       
       {/* Settings panel - shifts content on desktop, overlays on mobile */}
