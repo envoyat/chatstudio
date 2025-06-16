@@ -159,8 +159,10 @@ export const chat = internalAction({
               apiKey: userApiKey,
           });
       } else if (provider === 'google') { 
+          // For Google models, fallback to host API key if user hasn't provided one
+          const googleApiKey = userApiKey || getApiKeyFromConvexEnv("google");
           providerInstance = createGoogleGenerativeAI({
-              apiKey: userApiKey,
+              apiKey: googleApiKey,
           });
       } else if (provider === 'anthropic') {
           providerInstance = createAnthropic({
@@ -302,10 +304,14 @@ export const chat = internalAction({
         if (firstUserMessage) {
           console.log(`[ai.chat] Generating title for conversation ${conversationId}`);
           
-          // Get the appropriate API key for title generation
+          // Get Google API key for title generation (fallback to host key if user hasn't provided one)
           let googleApiKey = undefined;
           if (provider === 'google' && userApiKey) {
+            // If the current provider is Google and user provided a key, use it
             googleApiKey = userApiKey;
+          } else {
+            // Otherwise, try to get host Google API key from environment
+            googleApiKey = getApiKeyFromConvexEnv("google");
           }
           
           // Schedule title generation
