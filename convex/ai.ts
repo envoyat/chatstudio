@@ -3,7 +3,9 @@ import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
-import type { CoreMessage } from "ai";
+import { type CoreMessage, streamText, tool } from "ai";
+import { z } from 'zod';
+import { createOpenAI } from '@ai-sdk/openai';
 
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
@@ -11,17 +13,9 @@ import { MESSAGE_ROLES } from "./constants";
 import { ToolCallingProvider, getAvailableTools } from "./tools";
 
 // Import the stream functions from our new providers directory
-import * as openai from "./providers/openai";
 import * as google from "./providers/google";
 import * as anthropic from "./providers/anthropic";
 import * as openrouter from "./providers/openrouter";
-
-const providerStreamers = {
-  openai: openai.stream,
-  google: google.stream,
-  anthropic: anthropic.stream,
-  openrouter: openrouter.stream,
-};
 
 const messageValidator = v.object({
   _id: v.id("messages"),
@@ -176,19 +170,163 @@ export const chat = internalAction({
       const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName];
       const provider = modelConfig.provider;
 
-      let apiKey = userApiKey || getApiKeyFromConvexEnv(provider);
-      if (!apiKey) throw new Error(`API key for ${provider} is required.`);
-      
-      const tools = getAvailableTools(isWebSearchEnabled);
-      
-      // Create system prompt and prepare messages
-      const systemPrompt = createSystemPrompt(isWebSearchEnabled);
-      console.log(`[ai.chat] System prompt created: ${typeof systemPrompt.content === 'string' ? systemPrompt.content.substring(0, 100) + '...' : 'Non-string content'}`);
-      
-      // Use the new tool calling abstraction if tools are enabled
-      if (tools.length > 0) {
-        const toolProvider = new ToolCallingProvider(provider, apiKey, modelConfig.modelId);
+      if (provider === 'openai') {
+        const openai = createOpenAI({
+          apiKey: userApiKey, // Will use process.env.OPENAI_API_KEY if undefined
+        });
+
+        const systemPrompt = createSystemPrompt(isWebSearchEnabled);
+        const messagesForSdk: CoreMessage[] = [
+          systemPrompt,
+          ...messageHistory.map(({ content, role }) => ({
+            role: role as "user" | "assistant" | "system",
+            content,
+          })),
+        ];
+
+        const tools = {
+          web_search: tool({
+            description: "Search the web for current information. Use this tool when you need up-to-date information about recent events, current affairs, real-time data (stock prices, weather, sports scores), or specific facts that may have changed recently. Always provide clear citations when using search results.",
+            parameters: z.object({
+              query: z.string().describe("The search query to use. Be specific and concise. Focus on key terms relevant to the user's question."),
+            }),
+            execute: async ({ query }) => {
+              return await ctx.runAction(internal.tools.webSearch.run, { query });
+            }
+          })
+        };
+
+        const result = await streamText({
+          model: openai(modelConfig.modelId),
+          messages: messagesForSdk,
+          tools: isWebSearchEnabled ? tools : undefined,
+          toolChoice: isWebSearchEnabled ? 'auto' : undefined,
+          maxSteps: 5,
+        });
+
+        let body = "";
+        const currentToolCalls: any[] = [];
+
+        for await (const part of result.fullStream) {
+          switch (part.type) {
+            case 'text-delta': {
+              body += part.textDelta;
+              await ctx.runMutation(internal.messages.update, {
+                messageId: assistantMessageId,
+                content: body
+              });
+              break;
+            }
+            case 'tool-call': {
+              currentToolCalls.push({
+                id: part.toolCallId,
+                name: part.toolName,
+                args: JSON.stringify(part.args),
+              });
+              await ctx.runMutation(internal.messages.update, {
+                messageId: assistantMessageId,
+                content: body,
+                toolCalls: currentToolCalls,
+              });
+              break;
+            }
+            case 'tool-result': {
+              console.log(`[ai.chat] Tool result for ${part.toolName}:`, part.result);
+              break;
+            }
+            case 'error': {
+              console.error('[ai.chat] Error from AI stream:', part.error);
+              throw part.error;
+            }
+          }
+        }
         
+        await ctx.runMutation(internal.messages.finalise, {
+          messageId: assistantMessageId,
+          content: await result.text,
+        });
+      } else {
+        let apiKey = userApiKey || getApiKeyFromConvexEnv(provider);
+        if (!apiKey) throw new Error(`API key for ${provider} is required.`);
+        
+        const tools = getAvailableTools(isWebSearchEnabled);
+        
+        // Create system prompt and prepare messages
+        const systemPrompt = createSystemPrompt(isWebSearchEnabled);
+        console.log(`[ai.chat] System prompt created: ${typeof systemPrompt.content === 'string' ? systemPrompt.content.substring(0, 100) + '...' : 'Non-string content'}`);
+        
+        // Use the new tool calling abstraction if tools are enabled
+        if (tools.length > 0) {
+          const toolProvider = new ToolCallingProvider(provider, apiKey, modelConfig.modelId);
+          
+          const messagesForSdk: CoreMessage[] = [
+            systemPrompt,
+            ...messageHistory.map(({ content, role }) => ({
+              role: role as "user" | "assistant" | "system",
+              content,
+            }))
+          ];
+          
+          console.log(`[ai.chat] Total messages for SDK: ${messagesForSdk.length}, first message role: ${messagesForSdk[0]?.role}`);
+
+          // Stream with tools - handle proper conversation flow
+          let initialMessageContent = "";
+          let finalMessageContent = "";
+          let toolCalls: any[] = [];
+          let isAfterToolCall = false;
+          
+          for await (const chunk of toolProvider.streamWithTools(
+            messagesForSdk,
+            tools,
+            async (toolCall) => {
+              if (toolCall.name === 'web_search') {
+                const searchResult = await ctx.runAction(internal.tools.webSearch.run, { 
+                  query: toolCall.args.query 
+                });
+                return searchResult;
+              }
+              return "Tool not found";
+            }
+          )) {
+            if (chunk.type === "text") {
+              if (!isAfterToolCall) {
+                // This is the initial message before tool calls
+                initialMessageContent += chunk.content;
+                await ctx.runMutation(internal.messages.update, {
+                  messageId: assistantMessageId,
+                  content: initialMessageContent,
+                });
+              } else {
+                // This is the final response after tool calls
+                finalMessageContent += chunk.content;
+                await ctx.runMutation(internal.messages.update, {
+                  messageId: assistantMessageId,
+                  content: initialMessageContent + "\n\n" + finalMessageContent,
+                });
+              }
+            } else if (chunk.type === "tool_call" && chunk.toolCall) {
+              isAfterToolCall = true;
+              toolCalls.push({
+                name: chunk.toolCall.name,
+                args: JSON.stringify(chunk.toolCall.args),
+              });
+              await ctx.runMutation(internal.messages.update, {
+                messageId: assistantMessageId,
+                content: initialMessageContent,
+                toolCalls: toolCalls,
+              });
+            }
+          }
+          
+          await ctx.runMutation(internal.messages.finalise, {
+            messageId: assistantMessageId,
+            content: initialMessageContent + (finalMessageContent ? "\n\n" + finalMessageContent : ""),
+          });
+          
+          return null;
+        }
+        
+        // --- Original Streaming Logic (if no tools) ---
         const messagesForSdk: CoreMessage[] = [
           systemPrompt,
           ...messageHistory.map(({ content, role }) => ({
@@ -196,95 +334,33 @@ export const chat = internalAction({
             content,
           }))
         ];
-        
-        console.log(`[ai.chat] Total messages for SDK: ${messagesForSdk.length}, first message role: ${messagesForSdk[0]?.role}`);
 
-        // Stream with tools - handle proper conversation flow
-        let initialMessageContent = "";
-        let finalMessageContent = "";
-        let toolCalls: any[] = [];
-        let isAfterToolCall = false;
+        console.log(`[ai.chat] Fallback streaming - Total messages: ${messagesForSdk.length}, first message role: ${messagesForSdk[0]?.role}`);
+
+        const providerStreamers = {
+          google: google.stream,
+          anthropic: anthropic.stream,
+          openrouter: openrouter.stream,
+        };
         
-        for await (const chunk of toolProvider.streamWithTools(
-          messagesForSdk,
-          tools,
-          async (toolCall) => {
-            if (toolCall.name === 'web_search') {
-              const searchResult = await ctx.runAction(internal.tools.webSearch.run, { 
-                query: toolCall.args.query 
-              });
-              return searchResult;
-            }
-            return "Tool not found";
-          }
-        )) {
-          if (chunk.type === "text") {
-            if (!isAfterToolCall) {
-              // This is the initial message before tool calls
-              initialMessageContent += chunk.content;
-              await ctx.runMutation(internal.messages.update, {
-                messageId: assistantMessageId,
-                content: initialMessageContent,
-              });
-            } else {
-              // This is the final response after tool calls
-              finalMessageContent += chunk.content;
-              await ctx.runMutation(internal.messages.update, {
-                messageId: assistantMessageId,
-                content: initialMessageContent + "\n\n" + finalMessageContent,
-              });
-            }
-          } else if (chunk.type === "tool_call" && chunk.toolCall) {
-            isAfterToolCall = true;
-            toolCalls.push({
-              name: chunk.toolCall.name,
-              args: JSON.stringify(chunk.toolCall.args),
-            });
-            await ctx.runMutation(internal.messages.update, {
-              messageId: assistantMessageId,
-              content: initialMessageContent,
-              toolCalls: toolCalls,
-            });
-          }
+        const streamProvider = providerStreamers[provider as keyof typeof providerStreamers];
+        if (!streamProvider) throw new Error(`No streamer implemented for provider: ${provider}`);
+        const stream = streamProvider(apiKey, modelConfig.modelId, messagesForSdk);
+
+        let body = "";
+        for await (const textPart of stream) {
+          body += textPart;
+          await ctx.runMutation(internal.messages.update, {
+            messageId: assistantMessageId,
+            content: body,
+          });
         }
         
         await ctx.runMutation(internal.messages.finalise, {
           messageId: assistantMessageId,
-          content: initialMessageContent + (finalMessageContent ? "\n\n" + finalMessageContent : ""),
-        });
-        
-        return null;
-      }
-      
-      // --- Original Streaming Logic (if no tools) ---
-      const messagesForSdk: CoreMessage[] = [
-        systemPrompt,
-        ...messageHistory.map(({ content, role }) => ({
-          role: role as "user" | "assistant" | "system",
-          content,
-        }))
-      ];
-
-      console.log(`[ai.chat] Fallback streaming - Total messages: ${messagesForSdk.length}, first message role: ${messagesForSdk[0]?.role}`);
-
-      const streamProvider = providerStreamers[provider];
-      if (!streamProvider) throw new Error(`No streamer implemented for provider: ${provider}`);
-      const stream = streamProvider(apiKey, modelConfig.modelId, messagesForSdk);
-
-      let body = "";
-      for await (const textPart of stream) {
-        body += textPart;
-        await ctx.runMutation(internal.messages.update, {
-          messageId: assistantMessageId,
           content: body,
         });
       }
-      
-      await ctx.runMutation(internal.messages.finalise, {
-        messageId: assistantMessageId,
-        content: body,
-      });
-
     } catch (e: any) {
       const errorMessage = e.message || "An unknown error occurred";
       console.error(`[ai.chat] ACTION FAILED: ${errorMessage}`, e);
