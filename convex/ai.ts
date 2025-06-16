@@ -14,58 +14,99 @@ import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
 import { MESSAGE_ROLES } from "./constants";
 
 const messageValidator = v.object({
-  role: v.string(),
+  _id: v.id("messages"),
+  _creationTime: v.number(),
+  conversationId: v.id("conversations"),
+  role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
   content: v.string(),
+  parts: v.optional(v.any()),
+  isComplete: v.optional(v.boolean()),
+  createdAt: v.number(),
+  toolCalls: v.optional(v.any()),
+  toolOutputs: v.optional(v.any()),
 });
 
-type ChatMessage = {
-    role: "user" | "assistant" | "system" | "tool";
-    content: string;
-};
-
 type ChatParams = {
-  messageHistory: ChatMessage[];
+  messageHistory: Doc<"messages">[];
   assistantMessageId: Doc<"messages">["_id"];
   model: string;
   userApiKey?: string;
   isWebSearchEnabled?: boolean;
 };
 
-function createSystemPrompt(isWebSearchEnabled?: boolean): CoreMessage {
-  const currentDate = new Date().toISOString().split("T")[0];
-  const webSearchPrompt = isWebSearchEnabled
-    ? `
-- For questions that require up-to-date information, you can use the \`web_search\` tool.
-- Today's date is ${currentDate}.
-- Always cite your sources when using search results.`
-    : "";
+// System prompt function that includes current date and web search instructions
+function createSystemPrompt(isWebSearchEnabled: boolean = false): CoreMessage {
+  const currentDate = new Date().toLocaleDateString('en-AU', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC'
+  });
+  
+  console.log(`[createSystemPrompt] Generated date: ${currentDate}`);
+
+  let systemContent = `Current Date: ${currentDate}
+
+You are a helpful AI assistant. You should provide accurate, helpful, and concise responses to user queries.
+
+Key Guidelines:
+- Always strive to be helpful, accurate, and informative
+- If you're unsure about something, acknowledge your uncertainty
+- Use clear, well-structured responses
+- Maintain a friendly and professional tone`;
+
+  if (isWebSearchEnabled) {
+    systemContent += `
+
+Web Search Instructions:
+- You have access to a web search tool that can help you find current information
+- Use web search when users ask about:
+  * Recent events, news, or current affairs
+  * Real-time data (stock prices, weather, sports scores)
+  * Specific facts that may have changed recently
+  * Information that requires up-to-date sources
+- When using web search, be specific and concise with your search queries
+- Always cite the source of web search information when presenting results
+- If web search returns no useful results, inform the user clearly`;
+  }
 
   return {
-    role: "system",
-    content: `You are a helpful AI assistant.
-- You must always be polite and professional.
-- Your responses must be in Markdown format.
-- You can use tables, lists, and other formatting to make your responses easier to read.${webSearchPrompt}`,
+    role: MESSAGE_ROLES.SYSTEM as "system",
+    content: systemContent
   };
 }
 
+// --- generateTitle Internal Action ---
+// This action generates a title/summary for a message and schedules database updates.
 export const generateTitle = internalAction({
   args: {
     prompt: v.string(),
+    isTitle: v.optional(v.boolean()),
+    messageId: v.id("messages"),
     conversationId: v.id("conversations"),
-    isTitle: v.boolean()
+    userGoogleApiKey: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
-    const googleApiKey = process.env.GOOGLE_API_KEY;
+  returns: v.object({
+    success: v.boolean(),
+    title: v.optional(v.string()),
+  }),
+  handler: async (ctx, { prompt, isTitle, conversationId, messageId, userGoogleApiKey }) => {
+    let googleApiKey = userGoogleApiKey || getApiKeyFromConvexEnv("google");
+    
     if (!googleApiKey) {
-      console.warn("[ai.generateTitle] GOOGLE_API_KEY is not set, skipping title generation.");
-      return;
+      const errorMessage = userGoogleApiKey 
+        ? "Both user and host Google API keys are missing. Please set HOST_GOOGLE_API_KEY in Convex environment variables."
+        : "No Google API key available. Either provide a user API key or set HOST_GOOGLE_API_KEY in Convex environment variables.";
+      
+      console.error(`Title generation failed: ${errorMessage}`);
+      throw new Error(errorMessage);
     }
 
     try {
       const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
       const result = await streamText({
-        model: google("gemini-pro"),
+        model: google("gemini-2.0-flash"),
         messages: [
             {
                 role: MESSAGE_ROLES.SYSTEM,
@@ -78,7 +119,7 @@ export const generateTitle = internalAction({
             },
             {
                 role: MESSAGE_ROLES.USER,
-                content: args.prompt
+                content: prompt
             }
         ]});
 
@@ -87,16 +128,24 @@ export const generateTitle = internalAction({
         title += chunk;
       }
 
-      console.log(`[ai.generateTitle] Generated title: ${title}`);
-
-      if (args.isTitle) {
-        await ctx.runMutation(internal.conversations.updateTitle, {
-          conversationId: args.conversationId,
-          title: title,
-        });
+      if (isTitle) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.conversations.updateTitle,
+          { conversationId: conversationId, title: title.trim() },
+        );
       }
-    } catch (error) {
-      console.error("[ai.generateTitle] Failed to generate title:", error);
+      
+      await ctx.scheduler.runAfter(
+        0,
+        internal.messages.internalCreateSummary,
+        { conversationId, messageId, content: title.trim() },
+      );
+
+      return { success: true, title: title.trim() };
+    } catch (error: any) {
+      console.error("Failed to generate title:", error);
+      return { success: false };
     }
   },
 });
@@ -116,100 +165,99 @@ export const chat = internalAction({
       const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName];
       const provider = modelConfig.provider;
 
-      if (provider === 'openai' || provider === 'google' || provider === 'anthropic' || provider === 'openrouter') {
-        let providerInstance;
-        if (provider === 'openai') {
-            providerInstance = createOpenAI({
-                apiKey: userApiKey, // Will use process.env.OPENAI_API_KEY if undefined
+      let providerInstance;
+      if (provider === 'openai') {
+          providerInstance = createOpenAI({
+              apiKey: userApiKey,
+          });
+      } else if (provider === 'google') { 
+          providerInstance = createGoogleGenerativeAI({
+              apiKey: userApiKey,
+          });
+      } else if (provider === 'anthropic') {
+          providerInstance = createAnthropic({
+              apiKey: userApiKey,
+          });
+      } else if (provider === 'openrouter') {
+          providerInstance = createOpenAI({
+              apiKey: userApiKey,
+              baseURL: "https://openrouter.ai/api/v1",
+          });
+      } else {
+        throw new Error(`Unsupported provider: ${provider}`);
+      }
+
+      const systemPrompt = createSystemPrompt(isWebSearchEnabled);
+      const messagesForSdk: CoreMessage[] = [
+        systemPrompt,
+        ...messageHistory.map(({ content, role }) => ({
+          role: role as "user" | "assistant" | "system",
+          content,
+        })),
+      ];
+
+      const tools = {
+        web_search: tool({
+          description: "Search the web for current information. Use this tool when you need up-to-date information about recent events, current affairs, real-time data (stock prices, weather, sports scores), or specific facts that may have changed recently. Always provide clear citations when using search results.",
+          parameters: z.object({
+            query: z.string().describe("The search query to use. Be specific and concise. Focus on key terms relevant to the user's question."),
+          }),
+          execute: async ({ query }) => {
+            return await ctx.runAction(internal.tools.webSearch.run, { query });
+          }
+        })
+      };
+
+      const result = await streamText({
+        model: providerInstance(modelConfig.modelId as any),
+        messages: messagesForSdk,
+        tools: isWebSearchEnabled ? tools : undefined,
+        toolChoice: isWebSearchEnabled ? 'auto' : undefined,
+        maxSteps: 5,
+      });
+
+      let body = ""; 
+      const currentToolCalls: any[] = [];
+
+      for await (const part of result.fullStream) {
+        switch (part.type) {
+          case 'text-delta': {
+            body += part.textDelta;
+            await ctx.runMutation(internal.messages.update, {
+              messageId: assistantMessageId,
+              content: body,
+              toolCalls: currentToolCalls,
             });
-        } else if (provider === 'google') { 
-            providerInstance = createGoogleGenerativeAI({
-                apiKey: userApiKey, // Will use process.env.GOOGLE_GENERATIVE_AI_API_KEY if undefined
+            break;
+          }
+          case 'tool-call': {
+            currentToolCalls.push({
+              id: part.toolCallId, 
+              name: part.toolName,
+              args: JSON.stringify(part.args),
             });
-        } else if (provider === 'anthropic') {
-            providerInstance = createAnthropic({
-                apiKey: userApiKey, // Will use process.env.ANTHROPIC_API_KEY if undefined
+            await ctx.runMutation(internal.messages.update, {
+              messageId: assistantMessageId,
+              content: body,
+              toolCalls: currentToolCalls,
             });
-        } else { // provider === 'openrouter'
-            providerInstance = createOpenAI({
-                apiKey: userApiKey, // Will use process.env.OPENROUTER_API_KEY if undefined
-                baseURL: "https://openrouter.ai/api/v1",
-            });
-        }
-
-        const systemPrompt = createSystemPrompt(isWebSearchEnabled);
-        const messagesForSdk: CoreMessage[] = [
-          systemPrompt,
-          ...messageHistory.map(({ content, role }) => ({
-            role: role as "user" | "assistant" | "system",
-            content,
-          })),
-        ];
-
-        const tools = {
-          web_search: tool({
-            description: "Search the web for current information. Use this tool when you need up-to-date information about recent events, current affairs, real-time data (stock prices, weather, sports scores), or specific facts that may have changed recently. Always provide clear citations when using search results.",
-            parameters: z.object({
-              query: z.string().describe("The search query to use. Be specific and concise. Focus on key terms relevant to the user's question."),
-            }),
-            execute: async ({ query }) => {
-              return await ctx.runAction(internal.tools.webSearch.run, { query });
-            }
-          })
-        };
-
-        const result = await streamText({
-          model: providerInstance(modelConfig.modelId as any),
-          messages: messagesForSdk,
-          tools: isWebSearchEnabled ? tools : undefined,
-          toolChoice: isWebSearchEnabled ? 'auto' : undefined,
-          maxSteps: 5,
-        });
-
-        let body = ""; 
-        const currentToolCalls: any[] = [];
-
-        for await (const part of result.fullStream) {
-          switch (part.type) {
-            case 'text-delta': {
-              body += part.textDelta;
-              await ctx.runMutation(internal.messages.update, {
-                messageId: assistantMessageId,
-                content: body,
-                toolCalls: currentToolCalls,
-              });
-              break;
-            }
-            case 'tool-call': {
-              currentToolCalls.push({
-                id: part.toolCallId, 
-                name: part.toolName,
-                args: JSON.stringify(part.args),
-              });
-              await ctx.runMutation(internal.messages.update, {
-                messageId: assistantMessageId,
-                content: body,
-                toolCalls: currentToolCalls,
-              });
-              break;
-            }
-            case 'tool-result': {
-              console.log(`[ai.chat] Tool result for ${part.toolName}:`, part.result);
-              // We don't need to persist tool results to the DB for the current UI
-              break;
-            }
-            case 'error': {
-              console.error('[ai.chat] Error from AI stream:', part.error);
-              throw part.error;
-            }
+            break;
+          }
+          case 'tool-result': {
+            console.log(`[ai.chat] Tool result for ${part.toolName}:`, part.result);
+            break;
+          }
+          case 'error': {
+            console.error('[ai.chat] Error from AI stream:', part.error);
+            throw part.error;
           }
         }
-        
-        await ctx.runMutation(internal.messages.finalise, {
-          messageId: assistantMessageId,
-          content: body,
-        });
       }
+      
+      await ctx.runMutation(internal.messages.finalise, {
+        messageId: assistantMessageId,
+        content: body,
+      });
     } catch (e: any) {
       const errorMessage = e.message || "An unknown error occurred";
       console.error(`[ai.chat] ACTION FAILED: ${errorMessage}`, e);

@@ -8,11 +8,11 @@ import type { Id } from "@/convex/_generated/dataModel"
 function PureMessages({
   messages,
   isStreaming,
-  convexThreadId,
+  convexConversationId,
 }: {
   messages: UIMessage[]
   isStreaming: boolean
-  convexThreadId: Id<"threads"> | null
+  convexConversationId: Id<"conversations"> | null
 }) {
   return (
     <section className="flex flex-col space-y-12">
@@ -21,7 +21,7 @@ function PureMessages({
           key={message.id}
           message={message}
           messages={messages}
-          convexThreadId={convexThreadId}
+          convexConversationId={convexConversationId}
         />
       ))}
       {isStreaming && messages[messages.length - 1]?.content === "" && <MessageLoading />}
@@ -32,7 +32,7 @@ function PureMessages({
 const Messages = memo(PureMessages, (prevProps, nextProps) => {
   if (prevProps.isStreaming !== nextProps.isStreaming) return false
   if (!equal(prevProps.messages, nextProps.messages)) return false
-  if (prevProps.convexThreadId !== nextProps.convexThreadId) return false
+  if (prevProps.convexConversationId !== nextProps.convexConversationId) return false
   return true
 })
 

@@ -19,8 +19,8 @@ import { cn } from "@/lib/utils"
 import { memo } from "react"
 import { Authenticated, Unauthenticated, useConvexAuth } from "convex/react"
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs"
-import { useThreads, useDeleteThread } from "@/lib/convex-hooks"
-import { convertConvexThread } from "@/lib/convex-storage"
+import { useConversations, useDeleteConversation } from "@/lib/convex-hooks"
+import { convertConvexConversation } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
 import { ROUTES } from "@/frontend/constants/routes"
 import { MESSAGE_ROLES } from "@/convex/constants"
@@ -37,23 +37,23 @@ export default function ChatSidebar() {
   const { isAuthenticated } = useConvexAuth()
 
   // Use the updated hook which now includes last message info.
-  const convexThreads = useThreads()
-  const deleteThreadMutation = useDeleteThread()
+  const convexConversations = useConversations()
+  const deleteConversationMutation = useDeleteConversation()
 
-  // Convert Convex threads to app format - but keep the original data for streaming check
-  const threads = React.useMemo(() => {
-    if (!isAuthenticated || !convexThreads) return []
-    return convexThreads.map(thread => ({
-      ...convertConvexThread(thread),
-      lastMessage: thread.lastMessage // Keep the lastMessage for streaming check
+  // Convert Convex conversations to app format - but keep the original data for streaming check
+  const conversations = React.useMemo(() => {
+    if (!isAuthenticated || !convexConversations) return []
+    return convexConversations.map(conversation => ({
+      ...convertConvexConversation(conversation),
+      lastMessage: conversation.lastMessage // Keep the lastMessage for streaming check
     }))
-  }, [convexThreads, isAuthenticated])
+  }, [convexConversations, isAuthenticated])
 
-  // Extract thread ID from various possible paths
-  const currentThreadId = location.pathname.includes("/chat/") ? location.pathname.split("/chat/")[1] : null
+  // Extract conversation ID from various possible paths
+  const currentConversationId = location.pathname.includes("/chat/") ? location.pathname.split("/chat/")[1] : null
   const isCollapsed = state === "collapsed"
 
-  const handleDeleteThread = async (convexThreadId: Id<"threads">, event: React.MouseEvent) => {
+  const handleDeleteConversation = async (convexConversationId: Id<"conversations">, event: React.MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
     
@@ -61,10 +61,10 @@ export default function ChatSidebar() {
       // Use Convex mutation for authenticated users
       try {
         // Pass the actual Convex ID
-        await deleteThreadMutation({ threadId: convexThreadId })
+        await deleteConversationMutation({ conversationId: convexConversationId })
         navigate(ROUTES.CHAT)
       } catch (error) {
-        console.error('Failed to delete thread:', error)
+        console.error('Failed to delete conversation:', error)
       }
     }
   }
@@ -83,25 +83,25 @@ export default function ChatSidebar() {
             <SidebarGroup className="px-0">
               <SidebarGroupContent>
                 <SidebarMenu className="space-y-1">
-                  {threads?.map((thread) => {
+                  {conversations?.map((conversation) => {
                     // Logic for streaming state
-                    const isStreaming = thread.lastMessage?.role === MESSAGE_ROLES.ASSISTANT && thread.lastMessage.isComplete === false;
+                    const isStreaming = conversation.lastMessage?.role === MESSAGE_ROLES.ASSISTANT && conversation.lastMessage.isComplete === false;
                     
                     return (
-                      <SidebarMenuItem key={thread.id}>
+                      <SidebarMenuItem key={conversation.id}>
                         <div
                           className={cn(
                             "cursor-pointer group/thread h-10 flex items-center px-2 py-2 rounded-lg overflow-hidden w-full transition-colors hover:bg-primary/10",
-                            currentThreadId === thread.id && "bg-primary/15",
+                            currentConversationId === conversation.id && "bg-primary/15",
                           )}
                           onClick={() => {
-                            if (currentThreadId === thread.id) {
+                            if (currentConversationId === conversation.id) {
                               return
                             }
-                            navigate(ROUTES.CHAT_THREAD(thread.id))
+                            navigate(ROUTES.CHAT_THREAD(conversation.id))
                           }}
                         >
-                          <span className="truncate text-sm font-medium flex-1">{thread.title}</span>
+                          <span className="truncate text-sm font-medium flex-1">{conversation.title}</span>
                           
                           {/* Conditional spinner */}
                           {isStreaming ? (
@@ -113,7 +113,7 @@ export default function ChatSidebar() {
                               variant="ghost"
                               size="sm"
                               className="opacity-0 group-hover/thread:opacity-100 transition-opacity ml-2 h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                              onClick={(event) => handleDeleteThread(thread._id, event)}
+                              onClick={(event) => handleDeleteConversation(conversation._id, event)}
                             >
                               <X size={14} />
                             </Button>
@@ -131,7 +131,7 @@ export default function ChatSidebar() {
             <SidebarGroup className="px-4">
               <div className="flex flex-col items-center justify-center text-center py-8 px-4">
                 <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="font-semibold text-lg mb-2">Login to Save Chat Threads</h3>
+                <h3 className="font-semibold text-lg mb-2">Login to Save Chat Conversations</h3>
                 <p className="text-sm text-muted-foreground mb-4">
                   Sign in with Google to save your conversations and access them from any device.
                 </p>

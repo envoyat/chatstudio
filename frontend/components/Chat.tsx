@@ -6,7 +6,7 @@ import ChatRunSettings from "./ChatRunSettings"
 import type { UIMessage } from "ai"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
-import { useCreateThread, useThreadByUuid, useMessagesByUuid } from "@/lib/convex-hooks"
+import { useCreateConversation, useConversationByUuid, useMessagesByUuid } from "@/lib/convex-hooks"
 import { useTokenCounter } from "@/frontend/hooks/useTokenCounter"
 import { useState, useMemo, useEffect } from "react"
 import { useConvexAuth } from "convex/react"
@@ -20,17 +20,17 @@ interface ChatProps {
 export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   const selectedModel = useModelStore((state) => state.selectedModel)
   
-  const [convexThreadId, setConvexThreadId] = useState<Id<"threads"> | null>(null)
+  const [convexConversationId, setConvexConversationId] = useState<Id<"conversations"> | null>(null)
   const { isAuthenticated } = useConvexAuth()
 
   // Find the Convex thread ID from the URL's UUID.
-  const existingThread = useThreadByUuid(isAuthenticated ? initialThreadUuid : undefined)
+  const existingThread = useConversationByUuid(isAuthenticated ? initialThreadUuid : undefined)
   
   useEffect(() => {
     if (isAuthenticated && existingThread) {
-      setConvexThreadId(existingThread._id);
+      setConvexConversationId(existingThread._id);
     } else {
-      setConvexThreadId(null);
+      setConvexConversationId(null);
     }
   }, [isAuthenticated, existingThread, initialThreadUuid]);
 
@@ -72,7 +72,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
           <Messages
             messages={messages}
             isStreaming={isStreaming}
-            convexThreadId={convexThreadId}
+            convexConversationId={convexConversationId}
           />
         </div>
       </main>
@@ -80,8 +80,8 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
         <div className="w-full max-w-3xl mx-auto px-4 pb-4">
           <ChatInput
             threadId={initialThreadUuid}
-            convexThreadId={convexThreadId}
-            onConvexThreadIdChange={setConvexThreadId}
+            convexConversationId={convexConversationId}
+            onConvexConversationIdChange={setConvexConversationId}
             isStreaming={isStreaming}
           />
         </div>

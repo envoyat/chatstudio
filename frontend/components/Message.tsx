@@ -14,11 +14,11 @@ import { MESSAGE_ROLES } from "@/convex/constants"
 function PureMessage({
   message,
   messages,
-  convexThreadId,
+  convexConversationId,
 }: {
   message: UIMessage
   messages: UIMessage[]
-  convexThreadId: Id<"threads"> | null
+  convexConversationId: Id<"conversations"> | null
 }) {
   const [mode, setMode] = useState<"view" | "edit">("view")
 
@@ -44,7 +44,7 @@ function PureMessage({
           <MessageEditor
             message={message}
             setMode={setMode}
-            convexThreadId={convexThreadId}
+            convexConversationId={convexConversationId}
           />
         ) : (
           <>
@@ -61,7 +61,7 @@ function PureMessage({
             message={message}
             messages={messages}
             setMode={handleSetMode}
-            convexThreadId={convexThreadId}
+            convexConversationId={convexConversationId}
           />
         )}
       </div>
@@ -70,7 +70,7 @@ function PureMessage({
 }
 
 const PreviewMessage = memo(PureMessage, (prevProps, nextProps) => {
-  if (prevProps.convexThreadId !== nextProps.convexThreadId) return false
+  if (prevProps.convexConversationId !== nextProps.convexConversationId) return false
   if (!equal(prevProps.message, nextProps.message)) return false
   if (!equal(prevProps.messages, nextProps.messages)) return false
   return true

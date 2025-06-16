@@ -2,9 +2,9 @@ import type { UIMessage } from "ai";
 import type { Id } from "@/convex/_generated/dataModel";
 import { type MessageRole } from "@/convex/constants";
 
-export interface Thread {
-  _id: Id<"threads">;
-  id: string;
+export interface Conversation {
+  _id: Id<"conversations">;
+  id: string; // This is the UUID
   title: string;
   createdAt: Date;
   updatedAt: Date;
@@ -18,7 +18,7 @@ export interface Thread {
 export interface DBMessage {
   _id: Id<"messages">;
   id: string;
-  threadId: string;
+  conversationId: string;
   parts: UIMessage["parts"];
   content: string;
   role: MessageRole;
@@ -27,15 +27,15 @@ export interface DBMessage {
 
 export interface MessageSummary {
   id: string;
-  threadId: string;
+  conversationId: string;
   messageId: string;
   content: string;
   createdAt: Date;
 }
 
-// Convert Convex thread to app thread format
-export function convertConvexThread(convexThread: {
-  _id: Id<"threads">;
+// Convert Convex conversation to app conversation format
+export function convertConvexConversation(convexConversation: {
+  _id: Id<"conversations">;
   _creationTime: number;
   uuid: string;
   title: string;
@@ -43,14 +43,14 @@ export function convertConvexThread(convexThread: {
   createdAt: number;
   updatedAt: number;
   lastMessageAt: number;
-}): Thread {
+}): Conversation {
   return {
-    _id: convexThread._id,
-    id: convexThread.uuid, // Use UUID as the id for URL routing
-    title: convexThread.title,
-    createdAt: new Date(convexThread.createdAt),
-    updatedAt: new Date(convexThread.updatedAt),
-    lastMessageAt: new Date(convexThread.lastMessageAt),
+    _id: convexConversation._id,
+    id: convexConversation.uuid, // Use UUID as the id for URL routing
+    title: convexConversation.title,
+    createdAt: new Date(convexConversation.createdAt),
+    updatedAt: new Date(convexConversation.updatedAt),
+    lastMessageAt: new Date(convexConversation.lastMessageAt),
   };
 }
 
@@ -58,7 +58,7 @@ export function convertConvexThread(convexThread: {
 export function convertConvexMessage(convexMessage: {
   _id: Id<"messages">;
   _creationTime: number;
-  threadId: Id<"threads">;
+  conversationId: Id<"conversations">;
   content: string;
   role: MessageRole;
   parts?: any;
@@ -67,7 +67,7 @@ export function convertConvexMessage(convexMessage: {
   return {
     _id: convexMessage._id,
     id: convexMessage._id,
-    threadId: convexMessage.threadId,
+    conversationId: convexMessage.conversationId,
     parts: convexMessage.parts,
     content: convexMessage.content,
     role: convexMessage.role,

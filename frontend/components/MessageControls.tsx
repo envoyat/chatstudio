@@ -17,14 +17,14 @@ interface MessageControlsProps {
   message: UIMessage;
   messages: UIMessage[]; // The full list of messages in the chat
   setMode: (mode: "view" | "edit") => void;
-  convexThreadId: Id<"threads"> | null;
+  convexConversationId: Id<"conversations"> | null;
 }
 
 export default function MessageControls({
   message,
   messages,
   setMode,
-  convexThreadId,
+  convexConversationId,
 }: MessageControlsProps) {
   const [copied, setCopied] = useState(false)
   const { isAuthenticated } = useConvexAuth()
@@ -42,7 +42,7 @@ export default function MessageControls({
   }
 
   const handleRegenerate = async () => {
-    if (!isAuthenticated || !convexThreadId || !message.createdAt) return;
+    if (!isAuthenticated || !convexConversationId || !message.createdAt) return;
 
     let contentToResend: string | null = null;
     let timestampToDeleteFrom: number;
@@ -75,7 +75,7 @@ export default function MessageControls({
     
     try {
       await deleteTrailingMessages({
-        threadId: convexThreadId,
+        conversationId: convexConversationId,
         fromCreatedAt: timestampToDeleteFrom,
         inclusive: inclusiveDelete,
       });
@@ -84,7 +84,7 @@ export default function MessageControls({
       const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) || undefined : undefined;
 
       await sendMessage({
-        threadId: convexThreadId,
+        conversationId: convexConversationId,
         content: contentToResend,
         model: selectedModel,
         userApiKey: userApiKeyForModel,

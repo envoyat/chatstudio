@@ -18,29 +18,29 @@ export const useMessageSummary = () => {
       body?: {
         isTitle?: boolean
         messageId: string
-        threadId: string
+        conversationId: string
         convexMessageId?: Id<"messages">
-        convexThreadId?: Id<"threads">
+        convexConversationId?: Id<"conversations">
       }
     }
   ) => {
-    const { isTitle = false, messageId, threadId, convexMessageId, convexThreadId } = options?.body || {}
+    const { isTitle = false, messageId, conversationId, convexMessageId, convexConversationId } = options?.body || {}
 
-    if (!messageId || !threadId) {
-      console.error("MessageId and ThreadId are required for message summary.")
+    if (!messageId || !conversationId) {
+      console.error("MessageId and ConversationId are required for message summary.")
       toast.error("Failed to generate summary: Missing IDs.")
       return
     }
 
     try {
-      if (isAuthenticated && convexMessageId && convexThreadId) {
+      if (isAuthenticated && convexMessageId && convexConversationId) {
         const userGoogleApiKey = hasUserKey("google") ? (getKey("google") || undefined) : undefined
 
         await generateTitleMutation({
           prompt,
           isTitle,
           messageId: convexMessageId,
-          threadId: convexThreadId,
+          conversationId: convexConversationId,
           userGoogleApiKey,
         })
       }

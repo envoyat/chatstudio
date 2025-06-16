@@ -14,18 +14,18 @@ import { AI_MODELS, type AIModel, isModelAvailable, getModelConfig } from "@/lib
 import { useConvexAuth } from "convex/react"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { useCreateThread } from "@/lib/convex-hooks"
+import { useCreateConversation } from "@/lib/convex-hooks"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useChatRunSettingsStore } from "../stores/ChatRunSettingsStore"
 
 interface ChatInputProps {
   threadId: string
   isStreaming: boolean
-  convexThreadId: Id<"threads"> | null
-  onConvexThreadIdChange: React.Dispatch<React.SetStateAction<Id<"threads"> | null>>
+  convexConversationId: Id<"conversations"> | null
+  onConvexConversationIdChange: React.Dispatch<React.SetStateAction<Id<"conversations"> | null>>
 }
 
-function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadIdChange }: ChatInputProps) {
+function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexConversationIdChange }: ChatInputProps) {
   const [input, setInput] = useState("")
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({ minHeight: 72, maxHeight: 200 })
   const navigate = useNavigate()
@@ -38,7 +38,7 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
   const isDisabled = useMemo(() => !input.trim() || isStreaming, [input, isStreaming])
   
   const { isAuthenticated } = useConvexAuth()
-  const convexCreateThread = useCreateThread()
+  const convexCreateConversation = useCreateConversation()
   const sendMessage = useMutation(api.messages.send)
 
   const handleSubmit = useCallback(async () => {
@@ -47,16 +47,16 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
     setInput("")
     adjustHeight(true)
 
-    let currentConvexThreadId = convexThreadId
+    let currentConvexConversationId = convexConversationId
 
     if (isAuthenticated) {
-      if (!currentConvexThreadId) {
-        const newThreadId = await convexCreateThread({
+      if (!currentConvexConversationId) {
+        const newConversationId = await convexCreateConversation({
           title: currentInput.slice(0, 50) + "...",
           uuid: threadId,
         })
-        currentConvexThreadId = newThreadId
-        onConvexThreadIdChange(newThreadId)
+        currentConvexConversationId = newConversationId
+        onConvexConversationIdChange(newConversationId)
         
         const isNewThreadRoute = location.pathname === "/" || location.pathname === "/chat";
         if (isNewThreadRoute) {
@@ -68,7 +68,7 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
       const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined
       
       const payload = {
-        threadId: currentConvexThreadId,
+        conversationId: currentConvexConversationId,
         content: currentInput,
         model: selectedModel,
         userApiKey: userApiKeyForModel || undefined,
@@ -84,8 +84,8 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
       console.warn("[ChatInput] Attempted to send message while unauthenticated.")
     }
   }, [
-    input, isDisabled, sendMessage, convexThreadId, onConvexThreadIdChange,
-    isAuthenticated, convexCreateThread, threadId, location.pathname, navigate,
+    input, isDisabled, sendMessage, convexConversationId, onConvexConversationIdChange,
+    isAuthenticated, convexCreateConversation, threadId, location.pathname, navigate,
     selectedModel, getKey, hasUserKey, adjustHeight, isWebSearchEnabled
   ])
 

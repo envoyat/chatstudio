@@ -10,7 +10,7 @@ import { useConvexAuth } from "convex/react"
 
 export default function Home() {
   const [isHydrated, setIsHydrated] = useState(false)
-  const [threadId] = useState(() => uuidv4())
+  const [conversationId] = useState(() => uuidv4())
   const hasRequiredKeys = useAPIKeyStore((state) => state.hasRequiredKeys())
   const { isAuthenticated } = useConvexAuth()
 
@@ -55,5 +55,5 @@ export default function Home() {
   }
 
   // The Chat component now handles all message loading internally using the persistent reactivity pattern
-  return <Chat threadId={threadId} />
+  return <Chat threadId={conversationId} />
 }
