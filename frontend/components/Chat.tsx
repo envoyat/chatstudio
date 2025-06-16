@@ -3,12 +3,13 @@
 import Messages from "./Messages"
 import ChatInput from "./ChatInput"
 import ChatRunSettings from "./ChatRunSettings"
+import ScrollIndicator from "./ScrollIndicator"
 import type { UIMessage } from "ai"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { useCreateThread, useThreadByUuid, useMessagesByUuid } from "@/lib/convex-hooks"
 import { useTokenCounter } from "@/frontend/hooks/useTokenCounter"
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useConvexAuth } from "convex/react"
 import type { Id } from "@/convex/_generated/dataModel"
 import { MESSAGE_ROLES } from "@/convex/constants"
@@ -22,6 +23,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   
   const [convexThreadId, setConvexThreadId] = useState<Id<"threads"> | null>(null)
   const { isAuthenticated } = useConvexAuth()
+  const scrollContainerRef = useRef<HTMLElement>(null)
 
   // Find the Convex thread ID from the URL's UUID.
   const existingThread = useThreadByUuid(isAuthenticated ? initialThreadUuid : undefined)
@@ -63,27 +65,40 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   }, [messages]);
 
   return (
-    <div className="relative w-full h-screen flex flex-col">
-      <main className="flex-1 overflow-y-auto">
-        <div className="w-full max-w-3xl pt-10 pb-44 mx-auto px-4">
-          <Messages
-            messages={messages}
-            isStreaming={isStreaming}
-            convexThreadId={convexThreadId}
-          />
-        </div>
-      </main>
-      <div className="absolute bottom-0 left-0 right-11">
-        <div className="w-full max-w-3xl mx-auto px-4 pb-4">
-          <ChatInput
-            threadId={initialThreadUuid}
-            convexThreadId={convexThreadId}
-            onConvexThreadIdChange={setConvexThreadId}
-            isStreaming={isStreaming}
-          />
-        </div>
+    <div className="relative w-full h-screen flex">
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col">
+        <main 
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto relative no-scrollbar"
+        >
+          {/* Custom scroll indicator */}
+          <ScrollIndicator containerRef={scrollContainerRef} />
+          
+          <div className="w-full max-w-3xl mx-auto px-4">
+            {/* Messages with padding to account for sticky input */}
+            <div className="pt-10 pb-32">
+              <Messages
+                messages={messages}
+                isStreaming={isStreaming}
+                convexThreadId={convexThreadId}
+              />
+            </div>
+            
+            {/* Sticky ChatInput at bottom */}
+            <div className="sticky bottom-0 pb-4">
+              <ChatInput
+                threadId={initialThreadUuid}
+                convexThreadId={convexThreadId}
+                onConvexThreadIdChange={setConvexThreadId}
+                isStreaming={isStreaming}
+              />
+            </div>
+          </div>
+        </main>
       </div>
       
+      {/* Settings panel - shifts content on desktop, overlays on mobile */}
       <ChatRunSettings />
     </div>
   )

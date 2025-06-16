@@ -70,21 +70,25 @@ export function SidebarProvider({ children, defaultState = "expanded" }: Sidebar
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {}
 
-export function Sidebar({ className, ...props }: SidebarProps) {
-  const { state } = useSidebar()
+export const Sidebar = React.forwardRef<HTMLDivElement, SidebarProps>(
+  ({ className, ...props }, ref) => {
+    const { state } = useSidebar()
 
-  return (
-    <div
-      className={cn(
-        "bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out flex flex-col",
-        state === "expanded" ? "w-64" : "w-0",
-        className,
-      )}
-      data-state={state}
-      {...props}
-    />
-  )
-}
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          "bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out flex flex-col relative z-20",
+          state === "expanded" ? "w-64" : "w-0",
+          className,
+        )}
+        data-state={state}
+        {...props}
+      />
+    )
+  }
+)
+Sidebar.displayName = "Sidebar"
 
 interface SidebarHeaderProps extends React.HTMLAttributes<HTMLDivElement> {}
 

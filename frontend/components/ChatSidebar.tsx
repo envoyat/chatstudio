@@ -12,6 +12,7 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Link, useNavigate, useLocation } from "react-router-dom"
 import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn, Loader2 } from "lucide-react"
@@ -24,7 +25,6 @@ import { convertConvexThread } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
 import { ROUTES } from "@/frontend/constants/routes"
 import { MESSAGE_ROLES } from "@/convex/constants"
-
 // A simple spinner component for the sidebar.
 const StreamingSpinner = () => (
   <Loader2 size={16} className="animate-spin text-primary" />
@@ -35,6 +35,8 @@ export default function ChatSidebar() {
   const location = useLocation()
   const { state, toggle } = useSidebar()
   const { isAuthenticated } = useConvexAuth()
+  const sidebarRef = React.useRef<HTMLDivElement>(null)
+  const isMobile = useIsMobile()
 
   // Use the updated hook which now includes last message info.
   const convexThreads = useThreads()
@@ -52,6 +54,38 @@ export default function ChatSidebar() {
   // Extract thread ID from various possible paths
   const currentThreadId = location.pathname.includes("/chat/") ? location.pathname.split("/chat/")[1] : null
   const isCollapsed = state === "collapsed"
+  
+  // Debug state changes
+  React.useEffect(() => {
+    console.log('[Sidebar] State changed:', state, 'isCollapsed:', isCollapsed)
+  }, [state, isCollapsed])
+
+
+
+  // Handle click outside (only on mobile)
+  React.useEffect(() => {
+    if (!isMobile) return
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      console.log('[Sidebar] Click outside detected')
+      console.log('[Sidebar] isCollapsed:', isCollapsed)
+      console.log('[Sidebar] Contains target:', sidebarRef.current?.contains(event.target as Node))
+      
+      // Check if the click is on the toggle button or its children
+      const toggleButton = document.querySelector('[data-sidebar-toggle]')
+      const isToggleButtonClick = toggleButton && (toggleButton === event.target || toggleButton.contains(event.target as Node))
+      
+      if (!isCollapsed && sidebarRef.current && !sidebarRef.current.contains(event.target as Node) && !isToggleButtonClick) {
+        console.log('[Sidebar] Toggling from click outside')
+        toggle()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isCollapsed, toggle, isMobile])
 
   const handleDeleteThread = async (convexThreadId: Id<"threads">, event: React.MouseEvent) => {
     event.preventDefault()
@@ -69,12 +103,41 @@ export default function ChatSidebar() {
     }
   }
 
+  // Handle sidebar toggle
+  const handleSidebarToggle = () => {
+    console.log('[Sidebar] Toggle button clicked')
+    console.log('[Sidebar] Current state:', state)
+    console.log('[Sidebar] isCollapsed:', isCollapsed)
+    console.log('[Sidebar] isMobile:', isMobile)
+    toggle()
+    console.log('[Sidebar] Toggle called')
+  }
+
   return (
     <>
+      {/* Mobile backdrop blur */}
+      {isMobile && !isCollapsed && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => {
+            console.log('[Sidebar] Backdrop clicked')
+            toggle()
+          }}
+        />
+      )}
+      
       <Sidebar
+        ref={sidebarRef}
         className={cn(
-          "transition-all duration-300 ease-in-out overflow-hidden",
-          isCollapsed ? "w-0" : "w-64",
+          "transition-all duration-300 ease-in-out overflow-hidden z-50",
+          isMobile 
+            ? cn(
+                "fixed left-0 top-0 h-full",
+                isCollapsed ? "-translate-x-full w-64" : "translate-x-0 w-64"
+              )
+            : cn(
+                isCollapsed ? "w-0" : "w-64"
+              )
         )}
       >
         <Header />
@@ -151,12 +214,15 @@ export default function ChatSidebar() {
       <Button
         variant="ghost"
         size="icon"
+        data-sidebar-toggle
         className={cn(
-          "fixed top-3 z-50 h-8 w-8 rounded-full bg-background/50 backdrop-blur-sm",
+          "fixed top-3 z-[60] h-8 w-8 rounded-full bg-background/50 backdrop-blur-sm",
           "transition-all duration-300 ease-in-out",
-          isCollapsed ? "left-3" : "left-[16.5rem]",
+          isMobile 
+            ? "left-3" // Always in same position on mobile
+            : (isCollapsed ? "left-3" : "left-[16.5rem]"), // Desktop behavior
         )}
-        onClick={toggle}
+        onClick={handleSidebarToggle}
       >
         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
       </Button>
