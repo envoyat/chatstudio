@@ -12,6 +12,7 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Link, useNavigate, useLocation } from "react-router-dom"
 import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn, Loader2 } from "lucide-react"
@@ -38,6 +39,7 @@ export default function ChatSidebar() {
   const { isAuthenticated } = useConvexAuth()
   const { isSettingsOpen, setSettingsOpen, isSidebarOpen, setSidebarOpen } = useUILayoutStore()
   const sidebarRef = React.useRef<HTMLDivElement>(null)
+  const isMobile = useIsMobile()
 
   // Use the updated hook which now includes last message info.
   const convexThreads = useThreads()
@@ -61,8 +63,10 @@ export default function ChatSidebar() {
     setSidebarOpen(!isCollapsed)
   }, [isCollapsed, setSidebarOpen])
 
-  // Handle click outside
+  // Handle click outside (only on mobile)
   React.useEffect(() => {
+    if (!isMobile) return
+    
     const handleClickOutside = (event: MouseEvent) => {
       if (!isCollapsed && sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
         toggle()
@@ -73,7 +77,7 @@ export default function ChatSidebar() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isCollapsed, toggle])
+  }, [isCollapsed, toggle, isMobile])
 
   const handleDeleteThread = async (convexThreadId: Id<"threads">, event: React.MouseEvent) => {
     event.preventDefault()
@@ -105,11 +109,26 @@ export default function ChatSidebar() {
 
   return (
     <>
+      {/* Mobile backdrop blur */}
+      {isMobile && !isCollapsed && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => toggle()}
+        />
+      )}
+      
       <Sidebar
         ref={sidebarRef}
         className={cn(
-          "transition-all duration-300 ease-in-out overflow-hidden",
-          isCollapsed ? "w-0" : "w-64",
+          "transition-all duration-300 ease-in-out overflow-hidden z-50",
+          isMobile 
+            ? cn(
+                "fixed left-0 top-0 h-full",
+                isCollapsed ? "-translate-x-full w-64" : "translate-x-0 w-64"
+              )
+            : cn(
+                isCollapsed ? "w-0" : "w-64"
+              )
         )}
       >
         <Header />
@@ -187,9 +206,11 @@ export default function ChatSidebar() {
         variant="ghost"
         size="icon"
         className={cn(
-          "fixed top-3 z-[45] h-8 w-8 rounded-full bg-background/50 backdrop-blur-sm",
+          "fixed top-3 z-[60] h-8 w-8 rounded-full bg-background/50 backdrop-blur-sm",
           "transition-all duration-300 ease-in-out",
-          isCollapsed ? "left-3" : "left-[16.5rem]",
+          isMobile 
+            ? "left-3" // Always in same position on mobile
+            : (isCollapsed ? "left-3" : "left-[16.5rem]"), // Desktop behavior
         )}
         onClick={handleSidebarToggle}
       >
