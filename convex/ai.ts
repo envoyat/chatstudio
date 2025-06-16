@@ -6,151 +6,97 @@ import type { Doc } from "./_generated/dataModel";
 import { type CoreMessage, streamText, tool } from "ai";
 import { z } from 'zod';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createAnthropic } from '@ai-sdk/anthropic';
 
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
 import { MESSAGE_ROLES } from "./constants";
-import { ToolCallingProvider, getAvailableTools } from "./tools";
-
-// Import the stream functions from our new providers directory
-import * as google from "./providers/google";
-import * as anthropic from "./providers/anthropic";
-import * as openrouter from "./providers/openrouter";
 
 const messageValidator = v.object({
-  _id: v.id("messages"),
-  _creationTime: v.number(),
-  threadId: v.id("threads"),
-  role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
+  role: v.string(),
   content: v.string(),
-  parts: v.optional(v.any()),
-  isComplete: v.optional(v.boolean()),
-  createdAt: v.number(),
-  toolCalls: v.optional(v.any()),
-  toolOutputs: v.optional(v.any()),
 });
 
+type ChatMessage = {
+    role: "user" | "assistant" | "system" | "tool";
+    content: string;
+};
+
 type ChatParams = {
-  messageHistory: Doc<"messages">[];
+  messageHistory: ChatMessage[];
   assistantMessageId: Doc<"messages">["_id"];
   model: string;
   userApiKey?: string;
   isWebSearchEnabled?: boolean;
 };
 
-// System prompt function that includes current date and web search instructions
-function createSystemPrompt(isWebSearchEnabled: boolean = false): CoreMessage {
-  const currentDate = new Date().toLocaleDateString('en-AU', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'UTC'
-  });
-  
-  console.log(`[createSystemPrompt] Generated date: ${currentDate}`);
-
-  let systemContent = `Current Date: ${currentDate}
-
-You are a helpful AI assistant. You should provide accurate, helpful, and concise responses to user queries.
-
-Key Guidelines:
-- Always strive to be helpful, accurate, and informative
-- If you're unsure about something, acknowledge your uncertainty
-- Use clear, well-structured responses
-- Maintain a friendly and professional tone`;
-
-  if (isWebSearchEnabled) {
-    systemContent += `
-
-Web Search Instructions:
-- You have access to a web search tool that can help you find current information
-- Use web search when users ask about:
-  * Recent events, news, or current affairs
-  * Real-time data (stock prices, weather, sports scores)
-  * Specific facts that may have changed recently
-  * Information that requires up-to-date sources
-- When using web search, be specific and concise with your search queries
-- Always cite the source of web search information when presenting results
-- If web search returns no useful results, inform the user clearly`;
-  }
+function createSystemPrompt(isWebSearchEnabled?: boolean): CoreMessage {
+  const currentDate = new Date().toISOString().split("T")[0];
+  const webSearchPrompt = isWebSearchEnabled
+    ? `
+- For questions that require up-to-date information, you can use the \`web_search\` tool.
+- Today's date is ${currentDate}.
+- Always cite your sources when using search results.`
+    : "";
 
   return {
-    role: MESSAGE_ROLES.SYSTEM as "system",
-    content: systemContent
+    role: "system",
+    content: `You are a helpful AI assistant.
+- You must always be polite and professional.
+- Your responses must be in Markdown format.
+- You can use tables, lists, and other formatting to make your responses easier to read.${webSearchPrompt}`,
   };
 }
 
-// --- generateTitle Internal Action ---
-// This action generates a title/summary for a message and schedules database updates.
 export const generateTitle = internalAction({
   args: {
     prompt: v.string(),
-    isTitle: v.optional(v.boolean()),
-    messageId: v.id("messages"), // Convex ID for the message
-    threadId: v.id("threads"),   // Convex ID for the thread
-    userGoogleApiKey: v.optional(v.string()), // User's Google API key passed from client
+    conversationId: v.id("conversations"),
+    isTitle: v.boolean()
   },
-  returns: v.object({
-    success: v.boolean(),
-    title: v.optional(v.string()),
-  }),
   handler: async (ctx, args) => {
-    let googleApiKey = args.userGoogleApiKey;
-    
+    const googleApiKey = process.env.GOOGLE_API_KEY;
     if (!googleApiKey) {
-      googleApiKey = getApiKeyFromConvexEnv("google");
-    }
-
-    if (!googleApiKey) {
-      const errorMessage = args.userGoogleApiKey 
-        ? "Both user and host Google API keys are missing. Please set HOST_GOOGLE_API_KEY in Convex environment variables."
-        : "No Google API key available. Either provide a user API key or set HOST_GOOGLE_API_KEY in Convex environment variables.";
-      
-      console.error(`Title generation failed: ${errorMessage}`);
-      throw new Error(errorMessage);
+      console.warn("[ai.generateTitle] GOOGLE_API_KEY is not set, skipping title generation.");
+      return;
     }
 
     try {
-      const stream = google.stream(googleApiKey, "gemini-2.0-flash", [
-        {
-          role: MESSAGE_ROLES.SYSTEM,
-          content: `
-            - You will generate a short title based on the first message a user begins a conversation with.
-            - The title should be no more than 10 words.
-            - Do not use quotes or colons.
-            - Do not answer the user's question, only generate a title.
-          `
-        },
-        {
-          role: MESSAGE_ROLES.USER,
-          content: args.prompt
-        }
-      ]);
+      const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
+      const result = await streamText({
+        model: google("gemini-pro"),
+        messages: [
+            {
+                role: MESSAGE_ROLES.SYSTEM,
+                content: `
+                    - You will generate a short title based on the first message a user begins a conversation with.
+                    - The title should be no more than 10 words.
+                    - Do not use quotes or colons.
+                    - Do not answer the user's question, only generate a title.
+                `
+            },
+            {
+                role: MESSAGE_ROLES.USER,
+                content: args.prompt
+            }
+        ]});
 
       let title = "";
-      for await (const chunk of stream) {
+      for await (const chunk of result.textStream) {
         title += chunk;
       }
 
-      if (args.isTitle) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.threads.internalUpdateTitle,
-          { threadId: args.threadId, title: title.trim() },
-        );
-      }
-      
-      await ctx.scheduler.runAfter(
-        0,
-        internal.messages.internalCreateSummary,
-        { threadId: args.threadId, messageId: args.messageId, content: title.trim() },
-      );
+      console.log(`[ai.generateTitle] Generated title: ${title}`);
 
-      return { success: true, title: title.trim() };
-    } catch (error: any) {
-      console.error("Failed to generate title:", error);
-      return { success: false };
+      if (args.isTitle) {
+        await ctx.runMutation(internal.conversations.updateTitle, {
+          conversationId: args.conversationId,
+          title: title,
+        });
+      }
+    } catch (error) {
+      console.error("[ai.generateTitle] Failed to generate title:", error);
     }
   },
 });
@@ -170,10 +116,26 @@ export const chat = internalAction({
       const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName];
       const provider = modelConfig.provider;
 
-      if (provider === 'openai') {
-        const openai = createOpenAI({
-          apiKey: userApiKey, // Will use process.env.OPENAI_API_KEY if undefined
-        });
+      if (provider === 'openai' || provider === 'google' || provider === 'anthropic' || provider === 'openrouter') {
+        let providerInstance;
+        if (provider === 'openai') {
+            providerInstance = createOpenAI({
+                apiKey: userApiKey, // Will use process.env.OPENAI_API_KEY if undefined
+            });
+        } else if (provider === 'google') { 
+            providerInstance = createGoogleGenerativeAI({
+                apiKey: userApiKey, // Will use process.env.GOOGLE_GENERATIVE_AI_API_KEY if undefined
+            });
+        } else if (provider === 'anthropic') {
+            providerInstance = createAnthropic({
+                apiKey: userApiKey, // Will use process.env.ANTHROPIC_API_KEY if undefined
+            });
+        } else { // provider === 'openrouter'
+            providerInstance = createOpenAI({
+                apiKey: userApiKey, // Will use process.env.OPENROUTER_API_KEY if undefined
+                baseURL: "https://openrouter.ai/api/v1",
+            });
+        }
 
         const systemPrompt = createSystemPrompt(isWebSearchEnabled);
         const messagesForSdk: CoreMessage[] = [
@@ -197,14 +159,14 @@ export const chat = internalAction({
         };
 
         const result = await streamText({
-          model: openai(modelConfig.modelId),
+          model: providerInstance(modelConfig.modelId as any),
           messages: messagesForSdk,
           tools: isWebSearchEnabled ? tools : undefined,
           toolChoice: isWebSearchEnabled ? 'auto' : undefined,
           maxSteps: 5,
         });
 
-        let body = "";
+        let body = ""; 
         const currentToolCalls: any[] = [];
 
         for await (const part of result.fullStream) {
@@ -213,13 +175,14 @@ export const chat = internalAction({
               body += part.textDelta;
               await ctx.runMutation(internal.messages.update, {
                 messageId: assistantMessageId,
-                content: body
+                content: body,
+                toolCalls: currentToolCalls,
               });
               break;
             }
             case 'tool-call': {
               currentToolCalls.push({
-                id: part.toolCallId,
+                id: part.toolCallId, 
                 name: part.toolName,
                 args: JSON.stringify(part.args),
               });
@@ -232,6 +195,7 @@ export const chat = internalAction({
             }
             case 'tool-result': {
               console.log(`[ai.chat] Tool result for ${part.toolName}:`, part.result);
+              // We don't need to persist tool results to the DB for the current UI
               break;
             }
             case 'error': {
@@ -239,121 +203,6 @@ export const chat = internalAction({
               throw part.error;
             }
           }
-        }
-        
-        await ctx.runMutation(internal.messages.finalise, {
-          messageId: assistantMessageId,
-          content: await result.text,
-        });
-      } else {
-        let apiKey = userApiKey || getApiKeyFromConvexEnv(provider);
-        if (!apiKey) throw new Error(`API key for ${provider} is required.`);
-        
-        const tools = getAvailableTools(isWebSearchEnabled);
-        
-        // Create system prompt and prepare messages
-        const systemPrompt = createSystemPrompt(isWebSearchEnabled);
-        console.log(`[ai.chat] System prompt created: ${typeof systemPrompt.content === 'string' ? systemPrompt.content.substring(0, 100) + '...' : 'Non-string content'}`);
-        
-        // Use the new tool calling abstraction if tools are enabled
-        if (tools.length > 0) {
-          const toolProvider = new ToolCallingProvider(provider, apiKey, modelConfig.modelId);
-          
-          const messagesForSdk: CoreMessage[] = [
-            systemPrompt,
-            ...messageHistory.map(({ content, role }) => ({
-              role: role as "user" | "assistant" | "system",
-              content,
-            }))
-          ];
-          
-          console.log(`[ai.chat] Total messages for SDK: ${messagesForSdk.length}, first message role: ${messagesForSdk[0]?.role}`);
-
-          // Stream with tools - handle proper conversation flow
-          let initialMessageContent = "";
-          let finalMessageContent = "";
-          let toolCalls: any[] = [];
-          let isAfterToolCall = false;
-          
-          for await (const chunk of toolProvider.streamWithTools(
-            messagesForSdk,
-            tools,
-            async (toolCall) => {
-              if (toolCall.name === 'web_search') {
-                const searchResult = await ctx.runAction(internal.tools.webSearch.run, { 
-                  query: toolCall.args.query 
-                });
-                return searchResult;
-              }
-              return "Tool not found";
-            }
-          )) {
-            if (chunk.type === "text") {
-              if (!isAfterToolCall) {
-                // This is the initial message before tool calls
-                initialMessageContent += chunk.content;
-                await ctx.runMutation(internal.messages.update, {
-                  messageId: assistantMessageId,
-                  content: initialMessageContent,
-                });
-              } else {
-                // This is the final response after tool calls
-                finalMessageContent += chunk.content;
-                await ctx.runMutation(internal.messages.update, {
-                  messageId: assistantMessageId,
-                  content: initialMessageContent + "\n\n" + finalMessageContent,
-                });
-              }
-            } else if (chunk.type === "tool_call" && chunk.toolCall) {
-              isAfterToolCall = true;
-              toolCalls.push({
-                name: chunk.toolCall.name,
-                args: JSON.stringify(chunk.toolCall.args),
-              });
-              await ctx.runMutation(internal.messages.update, {
-                messageId: assistantMessageId,
-                content: initialMessageContent,
-                toolCalls: toolCalls,
-              });
-            }
-          }
-          
-          await ctx.runMutation(internal.messages.finalise, {
-            messageId: assistantMessageId,
-            content: initialMessageContent + (finalMessageContent ? "\n\n" + finalMessageContent : ""),
-          });
-          
-          return null;
-        }
-        
-        // --- Original Streaming Logic (if no tools) ---
-        const messagesForSdk: CoreMessage[] = [
-          systemPrompt,
-          ...messageHistory.map(({ content, role }) => ({
-            role: role as "user" | "assistant" | "system",
-            content,
-          }))
-        ];
-
-        console.log(`[ai.chat] Fallback streaming - Total messages: ${messagesForSdk.length}, first message role: ${messagesForSdk[0]?.role}`);
-
-        const providerStreamers = {
-          google: google.stream,
-          anthropic: anthropic.stream,
-          openrouter: openrouter.stream,
-        };
-        
-        const streamProvider = providerStreamers[provider as keyof typeof providerStreamers];
-        if (!streamProvider) throw new Error(`No streamer implemented for provider: ${provider}`);
-        const stream = streamProvider(apiKey, modelConfig.modelId, messagesForSdk);
-
-        let body = "";
-        for await (const textPart of stream) {
-          body += textPart;
-          await ctx.runMutation(internal.messages.update, {
-            messageId: assistantMessageId,
-            content: body,
-          });
         }
         
         await ctx.runMutation(internal.messages.finalise, {

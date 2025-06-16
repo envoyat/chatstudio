@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { MESSAGE_ROLES } from "./constants";
 
 export default defineSchema({
-  threads: defineTable({
+  conversations: defineTable({
     uuid: v.string(), // UUID for URL routing
     title: v.string(),
     userId: v.string(), // Clerk user ID
@@ -16,7 +16,7 @@ export default defineSchema({
     .index("by_uuid", ["uuid"]),
 
   messages: defineTable({
-    threadId: v.id("threads"),
+    conversationId: v.id("conversations"),
     content: v.string(),
     role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
     parts: v.optional(v.any()), // UIMessage parts
@@ -25,15 +25,15 @@ export default defineSchema({
     toolCalls: v.optional(v.any()),
     toolOutputs: v.optional(v.any()),
   })
-    .index("by_thread", ["threadId"])
-    .index("by_thread_and_created", ["threadId", "createdAt"]),
+    .index("by_conversation", ["conversationId"])
+    .index("by_conversation_and_created", ["conversationId", "createdAt"]),
 
   messageSummaries: defineTable({
-    threadId: v.id("threads"),
+    conversationId: v.id("conversations"),
     messageId: v.id("messages"),
     content: v.string(),
     createdAt: v.number(),
   })
-    .index("by_thread", ["threadId"])
+    .index("by_conversation", ["conversationId"])
     .index("by_message", ["messageId"]),
 }); 
