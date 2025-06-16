@@ -294,6 +294,34 @@ export const chat = internalAction({
         messageId: assistantMessageId,
         content: finalContent,
       });
+
+      // Check if this is the first message exchange in the conversation
+      // (only 2 messages: user's first message and assistant's response)
+      if (messageHistory.length === 2) {
+        const firstUserMessage = messageHistory.find(msg => msg.role === MESSAGE_ROLES.USER);
+        if (firstUserMessage) {
+          console.log(`[ai.chat] Generating title for conversation ${conversationId}`);
+          
+          // Get the appropriate API key for title generation
+          let googleApiKey = undefined;
+          if (provider === 'google' && userApiKey) {
+            googleApiKey = userApiKey;
+          }
+          
+          // Schedule title generation
+          await ctx.scheduler.runAfter(
+            0,
+            internal.ai.generateTitle,
+            {
+              prompt: firstUserMessage.content,
+              isTitle: true,
+              messageId: firstUserMessage._id,
+              conversationId: conversationId,
+              userGoogleApiKey: googleApiKey,
+            }
+          );
+        }
+      }
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : "An unknown error occurred";
       console.error(`[ai.chat] ACTION FAILED: ${errorMessage}`, e);
