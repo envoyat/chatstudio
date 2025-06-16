@@ -4,6 +4,7 @@ import type { UIMessage } from "ai"
 import equal from "fast-deep-equal"
 import MessageLoading from "@/components/ui/message-loading"
 import type { Id } from "@/convex/_generated/dataModel"
+import type { UIMessageData } from "@/convex/types"
 
 function PureMessages({
   messages,
@@ -34,7 +35,12 @@ function PureMessages({
           </div>
         );
       })}
-      {isStreaming && messages[messages.length - 1]?.content === "" && (!(messages[messages.length - 1].data as { toolCalls?: any[] })?.toolCalls || (messages[messages.length - 1].data as { toolCalls?: any[] })?.toolCalls?.length === 0) && (
+      {isStreaming && messages[messages.length - 1]?.content === "" && (() => {
+        const lastMessage = messages[messages.length - 1];
+        const messageData = lastMessage?.data as UIMessageData | undefined;
+        const hasToolCalls = messageData?.toolCalls && messageData.toolCalls.length > 0;
+        return !hasToolCalls;
+      })() && (
         <div className="mt-2">
           <MessageLoading />
         </div>

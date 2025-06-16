@@ -2,6 +2,37 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { MESSAGE_ROLES } from "./constants";
+import type { MessagePart, ToolCall, ToolOutput } from "./types";
+
+// Convex validator for message parts
+const messagePartValidator = v.union(
+  v.object({
+    type: v.literal('text'),
+    text: v.string(),
+  }),
+  v.object({
+    type: v.literal('tool-call'),
+    id: v.string(),
+    name: v.string(),
+    args: v.any(),
+  }),
+  v.object({
+    type: v.literal('tool-result'),
+    toolCallId: v.string(),
+    result: v.any(),
+  })
+);
+
+const toolCallValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+  args: v.any(), // Keep as any for Convex validator compatibility
+});
+
+const toolOutputValidator = v.object({
+  toolCallId: v.string(),
+  result: v.any(), // Keep as any for Convex validator compatibility
+});
 
 export const send = mutation({
   args: {
@@ -15,12 +46,16 @@ export const send = mutation({
   handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authorised to send messages");
+      throw new Error("Must be authenticated to send messages");
     }
 
-    // 1. Insert the user's message into the database.
-    // User messages are always considered "complete".
-    await ctx.db.insert("messages", {
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation || conversation.userId !== identity.subject) {
+      throw new Error("Not authorised to send messages to this conversation");
+    }
+
+    // 1. Insert the user's message to the database.
+    const userMessageId = await ctx.db.insert("messages", {
       conversationId,
       content,
       role: MESSAGE_ROLES.USER,
@@ -77,11 +112,11 @@ export const list = query({
       conversationId: v.id("conversations"),
       content: v.string(),
       role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
-      parts: v.optional(v.any()),
+      parts: v.optional(v.array(messagePartValidator)),
       createdAt: v.number(),
       isComplete: v.optional(v.boolean()),
-      toolCalls: v.optional(v.any()),
-      toolOutputs: v.optional(v.any()),
+      toolCalls: v.optional(v.array(toolCallValidator)),
+      toolOutputs: v.optional(v.array(toolOutputValidator)),
     }),
   ),
   handler: async (ctx, args) => {
@@ -105,14 +140,20 @@ export const list = query({
 export const update = internalMutation({
   args: { 
     messageId: v.id("messages"), 
-    parts: v.optional(v.any()),
+    parts: v.optional(v.array(messagePartValidator)),
     content: v.optional(v.string()),
-    toolCalls: v.optional(v.any()),
-    toolOutputs: v.optional(v.any()),
+    toolCalls: v.optional(v.array(toolCallValidator)),
+    toolOutputs: v.optional(v.array(toolOutputValidator)),
   },
   returns: v.null(),
   handler: async (ctx, { messageId, parts, content, toolCalls, toolOutputs }) => {
-    const updates: any = {};
+    const updates: {
+      parts?: MessagePart[];
+      content?: string;
+      toolCalls?: ToolCall[];
+      toolOutputs?: ToolOutput[];
+    } = {};
+    
     if (parts !== undefined) updates.parts = parts;
     if (content !== undefined) updates.content = content;
     if (toolCalls !== undefined) updates.toolCalls = toolCalls;

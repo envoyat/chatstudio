@@ -8,7 +8,7 @@ export function useConversations() {
 }
 
 export function useConversation(conversationId: Id<"conversations"> | undefined) {
-  return useQuery(api.conversations.get, conversationId ? { conversationId } : "skip");
+  return useQuery(api.conversations.getById, conversationId ? { conversationId } : "skip");
 }
 
 export function useConversationByUuid(uuid: string | undefined) {

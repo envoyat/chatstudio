@@ -4,24 +4,36 @@ import { MESSAGE_ROLES } from "./constants";
 
 export const create = mutation({
   args: {
-    title: v.string(),
-    uuid: v.optional(v.string()),
+    uuid: v.string(),
   },
   returns: v.id("conversations"),
-  handler: async (ctx, args) => {
+  handler: async (ctx, { uuid }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Must be authenticated to create a conversation");
+      throw new Error("Must be authenticated to create conversations");
     }
 
-    const now = Date.now();
+    // Check if a conversation with this UUID already exists for this user
+    const existingConversation = await ctx.db
+      .query("conversations")
+      .withIndex("by_uuid", (q) => q.eq("uuid", uuid))
+      .first();
+
+    if (existingConversation) {
+      if (existingConversation.userId !== identity.subject) {
+        throw new Error("Not authorised to access this conversation");
+      }
+      return existingConversation._id;
+    }
+
+    // Create new conversation
     const conversationId = await ctx.db.insert("conversations", {
-      uuid: args.uuid || crypto.randomUUID(),
-      title: args.title,
+      uuid,
+      title: "New Conversation",
       userId: identity.subject,
-      createdAt: now,
-      updatedAt: now,
-      lastMessageAt: now,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      lastMessageAt: Date.now(),
     });
 
     return conversationId;
@@ -64,18 +76,53 @@ export const getByUuid = query({
   },
 });
 
+export const getById = query({
+  args: {
+    conversationId: v.id("conversations"),
+  },
+  returns: v.union(
+    v.object({
+      _id: v.id("conversations"),
+      _creationTime: v.number(),
+      uuid: v.string(),
+      title: v.string(),
+      userId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      lastMessageAt: v.number(),
+    }),
+    v.null()
+  ),
+  handler: async (ctx, { conversationId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    const conversation = await ctx.db.get(conversationId);
+    
+    if (!conversation || conversation.userId !== identity.subject) {
+      return null;
+    }
+
+    return conversation;
+  },
+});
+
 export const list = query({
   args: {},
-  returns: v.array(v.object({
-    _id: v.id("conversations"),
-    _creationTime: v.number(),
-    uuid: v.string(),
-    title: v.string(),
-    userId: v.string(),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-    lastMessageAt: v.number(),
-  })),
+  returns: v.array(
+    v.object({
+      _id: v.id("conversations"),
+      _creationTime: v.number(),
+      uuid: v.string(),
+      title: v.string(),
+      userId: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      lastMessageAt: v.number(),
+    }),
+  ),
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
@@ -148,37 +195,32 @@ export const update = mutation({
   args: {
     conversationId: v.id("conversations"),
     title: v.optional(v.string()),
-    lastMessageAt: v.optional(v.number()),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, { conversationId, title }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Must be authenticated to update a conversation");
+      throw new Error("Must be authenticated to update conversations");
     }
 
-    const conversation = await ctx.db.get(args.conversationId);
-    if (!conversation) {
-      throw new Error("Conversation not found");
-    }
-
-    if (conversation.userId !== identity.subject) {
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation || conversation.userId !== identity.subject) {
       throw new Error("Not authorised to update this conversation");
     }
 
-    const updates: any = {
+    const updates: {
+      title?: string;
+      updatedAt: number;
+    } = {
       updatedAt: Date.now(),
     };
 
-    if (args.title !== undefined) {
-      updates.title = args.title;
+    if (title !== undefined) {
+      updates.title = title;
     }
 
-    if (args.lastMessageAt !== undefined) {
-      updates.lastMessageAt = args.lastMessageAt;
-    }
+    await ctx.db.patch(conversationId, updates);
 
-    await ctx.db.patch(args.conversationId, updates);
     return null;
   },
 });
@@ -188,40 +230,40 @@ export const remove = mutation({
     conversationId: v.id("conversations"),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
+  handler: async (ctx, { conversationId }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Must be authenticated to delete a conversation");
+      throw new Error("Must be authenticated to delete conversations");
     }
 
-    const conversation = await ctx.db.get(args.conversationId);
-    if (!conversation) {
-      throw new Error("Conversation not found");
-    }
-
-    if (conversation.userId !== identity.subject) {
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation || conversation.userId !== identity.subject) {
       throw new Error("Not authorised to delete this conversation");
     }
 
+    // Delete all messages in the conversation
     const messages = await ctx.db
       .query("messages")
-      .withIndex("by_conversation", (q) => q.eq("conversationId", args.conversationId))
+      .withIndex("by_conversation", (q) => q.eq("conversationId", conversationId))
       .collect();
 
     for (const message of messages) {
       await ctx.db.delete(message._id);
+
+      // Also delete message summaries
+      const summaries = await ctx.db
+        .query("messageSummaries")
+        .withIndex("by_message", (q) => q.eq("messageId", message._id))
+        .collect();
+
+      for (const summary of summaries) {
+        await ctx.db.delete(summary._id);
+      }
     }
 
-    const summaries = await ctx.db
-      .query("messageSummaries")
-      .withIndex("by_conversation", (q) => q.eq("conversationId", args.conversationId))
-      .collect();
+    // Delete the conversation
+    await ctx.db.delete(conversationId);
 
-    for (const summary of summaries) {
-      await ctx.db.delete(summary._id);
-    }
-
-    await ctx.db.delete(args.conversationId);
     return null;
   },
 });
@@ -232,23 +274,19 @@ export const updateTitle = internalMutation({
     title: v.string(),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
-    const conversation = await ctx.db.get(args.conversationId);
-    if (!conversation) {
-      throw new Error("Conversation not found");
-    }
-
-    await ctx.db.patch(args.conversationId, {
-      title: args.title,
+  handler: async (ctx, { conversationId, title }) => {
+    await ctx.db.patch(conversationId, {
+      title,
       updatedAt: Date.now(),
     });
+
     return null;
   },
 });
 
 export const get = query({
   args: {
-    conversationId: v.id("conversations"),
+    uuid: v.string(),
   },
   returns: v.union(
     v.object({
@@ -261,15 +299,19 @@ export const get = query({
       updatedAt: v.number(),
       lastMessageAt: v.number(),
     }),
-    v.null()
+    v.null(),
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx, { uuid }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       return null;
     }
 
-    const conversation = await ctx.db.get(args.conversationId);
+    const conversation = await ctx.db
+      .query("conversations")
+      .withIndex("by_uuid", (q) => q.eq("uuid", uuid))
+      .first();
+
     if (!conversation || conversation.userId !== identity.subject) {
       return null;
     }

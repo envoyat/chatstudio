@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { internalAction } from "../_generated/server";
 import { tavily } from "@tavily/core";
+import type { WebSearchResult } from "../types";
 
 export const run = internalAction({
   args: {
@@ -23,11 +24,21 @@ export const run = internalAction({
         maxResults: 5,
       });
 
+      // Validate and format the results
+      const formattedResults: WebSearchResult[] = searchResult.results.map((result: any) => ({
+        title: String(result.title || 'Untitled'),
+        url: String(result.url || ''),
+        content: String(result.content || ''),
+        raw_content: result.raw_content ? String(result.raw_content) : undefined,
+        score: typeof result.score === 'number' ? result.score : undefined,
+      }));
+
       // Format the results into a JSON string for the LLM to process.
-      return JSON.stringify(searchResult.results);
-    } catch (error: any) {
-      console.error("Tavily search failed:", error);
-      return `Error performing web search: ${error.message}`;
+      return JSON.stringify(formattedResults);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Tavily search failed:", errorMessage);
+      return `Error performing web search: ${errorMessage}`;
     }
   },
 }); 

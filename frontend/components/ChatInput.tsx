@@ -52,7 +52,6 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
     if (isAuthenticated) {
       if (!currentConvexConversationId) {
         const newConversationId = await convexCreateConversation({
-          title: currentInput.slice(0, 50) + "...",
           uuid: threadId,
         })
         currentConvexConversationId = newConversationId

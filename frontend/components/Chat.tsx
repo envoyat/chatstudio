@@ -40,18 +40,65 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   // Memoize the conversion from Convex doc format to the UI's UIMessage format.
   const messages: UIMessage[] = useMemo(() => {
     if (!isAuthenticated || !convexMessages) return []
-    return convexMessages.map((msg) => ({
-      id: msg._id,
-      role: msg.role as "user" | "assistant" | "system" | "data",
-      content: msg.content,
-      parts: msg.parts || [{ type: "text", text: msg.content }],
-      createdAt: new Date(msg.createdAt),
-      data: { 
+    return convexMessages.map((msg) => {
+      const data: Record<string, any> = {
         isComplete: msg.isComplete ?? true,
-        toolCalls: msg.toolCalls,
-        toolOutputs: msg.toolOutputs,
-      },
-    }))
+      };
+      
+      if (msg.toolCalls) {
+        data.toolCalls = msg.toolCalls;
+      }
+      
+      if (msg.toolOutputs) {
+        data.toolOutputs = msg.toolOutputs;
+      }
+      
+      // Transform parts to match AI SDK's expected types
+      let parts: any[] = [];
+      if (msg.parts && msg.parts.length > 0) {
+        parts = msg.parts.map((part: any) => {
+          // Handle tool-call parts by converting to tool-invocation
+          if (part.type === 'tool-call') {
+            return {
+              type: 'tool-invocation',
+              toolInvocation: {
+                state: 'call',
+                toolCallId: part.id,
+                toolName: part.name,
+                args: part.args,
+              }
+            };
+          }
+          // Handle tool-result parts by converting to tool-invocation
+          else if (part.type === 'tool-result') {
+            return {
+              type: 'tool-invocation',
+              toolInvocation: {
+                state: 'result',
+                toolCallId: part.toolCallId,
+                toolName: '', // We don't have the tool name in the result
+                args: {},
+                result: part.result,
+              }
+            };
+          }
+          // Pass through other part types as-is
+          return part;
+        });
+      } else {
+        // Fallback to text part if no parts are provided
+        parts = [{ type: "text", text: msg.content }];
+      }
+      
+      return {
+        id: msg._id,
+        role: msg.role as "user" | "assistant" | "system" | "data",
+        content: msg.content,
+        parts,
+        createdAt: new Date(msg.createdAt),
+        data,
+      };
+    })
   }, [convexMessages, isAuthenticated])
 
   // Count tokens in messages and update store

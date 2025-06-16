@@ -1,20 +1,14 @@
 import { Loader2, Check } from "lucide-react";
 import { memo } from "react";
-
-interface ToolCall {
-  id: string;
-  name: string;
-  args: any; // Now it's an object from ai.ts
-}
-
-interface ToolOutput {
-  toolCallId: string;
-  result: any;
-}
+import type { ToolCall, ToolOutput, WebSearchArgs } from "@/convex/types";
 
 interface ToolCallDisplayProps {
   toolCalls: ToolCall[];
   toolOutputs?: ToolOutput[];
+}
+
+function isWebSearchArgs(args: unknown): args is WebSearchArgs {
+  return typeof args === 'object' && args !== null && 'query' in args && typeof (args as any).query === 'string';
 }
 
 function PureToolCallDisplay({ toolCalls, toolOutputs = [] }: ToolCallDisplayProps) {
@@ -45,10 +39,10 @@ function PureToolCallDisplay({ toolCalls, toolOutputs = [] }: ToolCallDisplayPro
             <span>{areAllWebSearchesComplete ? 'Searched the web for:' : 'Searching the web for:'}</span>
             <div className="flex flex-col items-start font-semibold text-foreground">
               {webSearches.map((call, index) => {
-                try {
-                  const args = typeof call.args === 'string' ? JSON.parse(call.args) : call.args;
-                  return <span key={index}>"{args.query}"</span>;
-                } catch (e) {
+                if (isWebSearchArgs(call.args)) {
+                  return <span key={index}>"{call.args.query}"</span>;
+                } else {
+                  console.warn('Invalid web search args:', call.args);
                   return null;
                 }
               })}

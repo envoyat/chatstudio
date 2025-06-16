@@ -44,9 +44,10 @@ export const useMessageSummary = () => {
           userGoogleApiKey,
         })
       }
-    } catch (error: any) {
-      console.error("Error generating title:", error)
-      toast.error(error.message || "Failed to generate title")
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate title";
+      console.error("Error generating title:", errorMessage);
+      toast.error(errorMessage);
     }
   }
 

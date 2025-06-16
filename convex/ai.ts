@@ -13,6 +13,26 @@ import { createSystemPrompt } from "./prompts";
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
 import { MESSAGE_ROLES } from "./constants";
+import { webSearchArgsSchema, type MessagePart, type ToolCall, type ToolOutput } from "./types";
+
+// Convex validator for message parts
+const messagePartValidator = v.union(
+  v.object({
+    type: v.literal('text'),
+    text: v.string(),
+  }),
+  v.object({
+    type: v.literal('tool-call'),
+    id: v.string(),
+    name: v.string(),
+    args: v.any(),
+  }),
+  v.object({
+    type: v.literal('tool-result'),
+    toolCallId: v.string(),
+    result: v.any(),
+  })
+);
 
 const messageValidator = v.object({
   _id: v.id("messages"),
@@ -20,11 +40,18 @@ const messageValidator = v.object({
   conversationId: v.id("conversations"),
   role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
   content: v.string(),
-  parts: v.optional(v.any()),
+  parts: v.optional(v.array(messagePartValidator)),
   isComplete: v.optional(v.boolean()),
   createdAt: v.number(),
-  toolCalls: v.optional(v.any()),
-  toolOutputs: v.optional(v.any()),
+  toolCalls: v.optional(v.array(v.object({
+    id: v.string(),
+    name: v.string(),
+    args: v.any(), // Keep as any for Convex validator compatibility
+  }))),
+  toolOutputs: v.optional(v.array(v.object({
+    toolCallId: v.string(),
+    result: v.any(), // Keep as any for Convex validator compatibility
+  }))),
 });
 
 type ChatParams = {
@@ -35,8 +62,6 @@ type ChatParams = {
   userApiKey?: string;
   isWebSearchEnabled?: boolean;
 };
-
-
 
 // --- generateTitle Internal Action ---
 // This action generates a title/summary for a message and schedules database updates.
@@ -104,8 +129,9 @@ export const generateTitle = internalAction({
       );
 
       return { success: true, title: title.trim() };
-    } catch (error: any) {
-      console.error("Failed to generate title:", error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Failed to generate title:", errorMessage);
       return { success: false };
     }
   },
@@ -172,9 +198,7 @@ export const chat = internalAction({
       const tools = {
         web_search: tool({
           description: "Search the web for current information. Use this tool when you need up-to-date information about recent events, current affairs, real-time data (stock prices, weather, sports scores), or specific facts that may have changed recently. Always provide clear citations when using search results.",
-          parameters: z.object({
-            query: z.string().describe("The search query to use. Be specific and concise. Focus on key terms relevant to the user's question."),
-          }),
+          parameters: webSearchArgsSchema,
           execute: async ({ query }) => {
             return await ctx.runAction(internal.tools.webSearch.run, { query });
           }
@@ -182,28 +206,36 @@ export const chat = internalAction({
       };
 
       const result = await streamText({
-        model: providerInstance(modelConfig.modelId as any),
+        model: providerInstance(modelConfig.modelId),
         messages: messagesForSdk,
         tools: isWebSearchEnabled ? tools : undefined,
         toolChoice: isWebSearchEnabled ? 'auto' : undefined,
         maxSteps: 5,
       });
 
-      let parts: (
-        | { type: 'text'; text: string }
-        | { type: 'tool-call'; id: string; name: string; args: any }
-        | { type: 'tool-result'; toolCallId: string; result: any }
-      )[] = [];
+      let parts: MessagePart[] = [];
       
       const updateMessage = async () => {
         const content = parts
-          .filter((part) => part.type === 'text')
-          .map((part) => (part as { type: 'text'; text: string }).text)
+          .filter((part): part is Extract<MessagePart, { type: 'text' }> => part.type === 'text')
+          .map((part) => part.text)
           .join('');
 
         // Separate tool calls and results for structured storage
-        const toolCalls = parts.filter(part => part.type === 'tool-call');
-        const toolOutputs = parts.filter(part => part.type === 'tool-result');
+        const toolCalls: ToolCall[] = parts
+          .filter((part): part is Extract<MessagePart, { type: 'tool-call' }> => part.type === 'tool-call')
+          .map(part => ({
+            id: part.id,
+            name: part.name,
+            args: part.args,
+          }));
+        
+        const toolOutputs: ToolOutput[] = parts
+          .filter((part): part is Extract<MessagePart, { type: 'tool-result' }> => part.type === 'tool-result')
+          .map(part => ({
+            toolCallId: part.toolCallId,
+            result: part.result,
+          }));
 
         await ctx.runMutation(internal.messages.update, {
           messageId: assistantMessageId,
@@ -254,16 +286,16 @@ export const chat = internalAction({
       }
 
       const finalContent = parts
-        .filter((part) => part.type === 'text')
-        .map((part) => (part as { type: 'text'; text: string }).text)
+        .filter((part): part is Extract<MessagePart, { type: 'text' }> => part.type === 'text')
+        .map((part) => part.text)
         .join('');
 
       await ctx.runMutation(internal.messages.finalise, {
         messageId: assistantMessageId,
         content: finalContent,
       });
-    } catch (e: any) {
-      const errorMessage = e.message || "An unknown error occurred";
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : "An unknown error occurred";
       console.error(`[ai.chat] ACTION FAILED: ${errorMessage}`, e);
       await ctx.runMutation(internal.messages.finalise, {
         messageId: assistantMessageId,
