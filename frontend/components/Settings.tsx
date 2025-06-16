@@ -166,8 +166,8 @@ export default function Settings() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="container flex h-14 items-center justify-between px-4">
+          <div className="flex items-center gap-3">
             <Link 
               to="/chat"
               className={cn(
@@ -175,85 +175,81 @@ export default function Settings() {
               )}
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Chat
+              <span className="hidden sm:inline">Back to Chat</span>
             </Link>
-            <Separator orientation="vertical" className="h-6" />
-            <h1 className="text-lg font-semibold">Settings</h1>
+            <Separator orientation="vertical" className="h-4" />
+            <h1 className="text-base sm:text-lg font-semibold">Settings</h1>
           </div>
           <ThemeToggle />
         </div>
       </div>
 
-      <div className="container max-w-4xl mx-auto py-8 space-y-8">
+      <div className="container max-w-2xl mx-auto py-4 px-4 space-y-4">
         {/* Account Section */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              <CardTitle>Account Information</CardTitle>
+              <User className="h-4 w-4" />
+              <CardTitle className="text-base">Account</CardTitle>
             </div>
-            <CardDescription>
+            <CardDescription className="text-sm">
               Your account details and authentication status
             </CardDescription>
           </CardHeader>
-          <CardContent>
-                         <Authenticated>
-               <div className="space-y-4">
-                 <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/20">
-                   <div className="flex-shrink-0">
-                     {user?.imageUrl ? (
-                       <img 
-                         src={user.imageUrl} 
-                         alt={user.fullName || "User"} 
-                         className="w-12 h-12 rounded-full"
-                       />
-                     ) : (
-                       <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                         <User className="h-6 w-6 text-primary" />
-                       </div>
-                     )}
-                   </div>
-                   <div className="flex-1 min-w-0">
-                     <h3 className="font-medium text-lg">
-                       {user?.fullName || user?.firstName || "User"}
-                     </h3>
-                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                       <Mail className="h-4 w-4" />
-                       {user?.primaryEmailAddress?.emailAddress}
-                     </div>
-                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                       <Calendar className="h-4 w-4" />
-                       Joined {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Recently"}
-                     </div>
-                   </div>
-                   <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                     Signed In
-                   </Badge>
-                 </div>
-                 
-                 <div className="flex justify-end">
-                   <SignOutButton>
-                     <Button variant="outline" className="gap-2">
-                       <LogOut className="h-4 w-4" />
-                       Sign Out
-                     </Button>
-                   </SignOutButton>
-                 </div>
-               </div>
-             </Authenticated>
+          <CardContent className="pt-0">
+            <Authenticated>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="flex-shrink-0">
+                    {user?.imageUrl ? (
+                      <img 
+                        src={user.imageUrl} 
+                        alt={user.fullName || "User"} 
+                        className="w-8 h-8 rounded-full"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-sm">
+                      {user?.fullName || user?.firstName || "User"}
+                    </h3>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Mail className="h-3 w-3" />
+                      <span className="truncate">{user?.primaryEmailAddress?.emailAddress}</span>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
+                    Active
+                  </Badge>
+                </div>
+                
+                <div className="flex justify-end">
+                  <SignOutButton>
+                    <Button variant="outline" size="sm" className="gap-2 text-xs">
+                      <LogOut className="h-3 w-3" />
+                      Sign Out
+                    </Button>
+                  </SignOutButton>
+                </div>
+              </div>
+            </Authenticated>
             
             <Unauthenticated>
-              <div className="text-center py-8">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                  <User className="h-8 w-8 text-muted-foreground" />
+              <div className="text-center py-4">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-muted flex items-center justify-center">
+                  <User className="h-6 w-6 text-muted-foreground" />
                 </div>
-                <h3 className="font-medium text-lg mb-2">Not Signed In</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Sign in with Google to save your conversations and access them from any device.
+                <h3 className="font-medium text-sm mb-2">Not Signed In</h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Sign in to save conversations across devices.
                 </p>
                 <SignInButton mode="modal">
-                  <Button>
-                    <Mail className="h-4 w-4 mr-2" />
+                  <Button size="sm" className="gap-2 text-xs">
+                    <Mail className="h-3 w-3" />
                     Sign In with Google
                   </Button>
                 </SignInButton>
@@ -264,73 +260,88 @@ export default function Settings() {
 
         {/* API Keys Section */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              <CardTitle>API Keys</CardTitle>
+              <Key className="h-4 w-4" />
+              <CardTitle className="text-base">API Keys</CardTitle>
             </div>
-            <CardDescription>
-              Free access to Google Gemini models and Web Search is available! Add your own keys for other providers.
+            <CardDescription className="text-sm">
+              Free Gemini access available! Add your keys for more models.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4 pt-0">
             {providers.map((provider) => {
               const keyState = apiKeys[provider.key]
               const hasUserApiKey = hasUserKey(provider.key)
               
               return (
-                <div key={provider.key} className="space-y-4 p-6 border border-border rounded-lg bg-card">
-                  <div className="flex items-center gap-3">
-                    <Key className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">
-                      {provider.name} API Key
-                      {provider.hasHostKey && (
-                        <span className="text-muted-foreground text-sm font-normal ml-2">(Optional - Free tier available)</span>
+                <div key={provider.key} className="space-y-3 p-3 border rounded-lg bg-card/50">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-4 w-4 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-medium">
+                        {provider.name}
+                        {provider.hasHostKey && (
+                          <span className="text-muted-foreground text-xs font-normal ml-1">
+                            (Free tier)
+                          </span>
+                        )}
+                        {!provider.hasHostKey && provider.required && (
+                          <span className="text-muted-foreground text-xs font-normal ml-1">
+                            (Required)
+                          </span>
+                        )}
+                      </h3>
+                      {hasUserApiKey && (
+                        <span className="text-green-600 dark:text-green-400 text-xs">Active</span>
                       )}
-                      {!provider.hasHostKey && provider.required && (
-                        <span className="text-red-500 text-sm font-normal ml-2">(Required)</span>
-                      )}
-                    </h3>
+                    </div>
                   </div>
                   
                   <div className="space-y-3">
-                    {provider.hasHostKey ? (
+                    {provider.hasHostKey && (
                       <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          🎉 Free access available! You can use the following models without an API key:
+                        <p className="text-xs text-muted-foreground">
+                          🎉 Free models available:
                         </p>
-                        <div className="flex gap-2 flex-wrap">
+                        <div className="flex gap-1 flex-wrap">
                           {provider.freeModels?.map((model) => (
-                            <Badge key={model} variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                              {model} (Free)
+                            <Badge key={model} variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs px-2 py-0">
+                              {model}
                             </Badge>
                           ))}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          Add your own {provider.name} API key for increased rate limits and access to all models:
-                        </p>
-                        <div className="flex gap-2 flex-wrap">
-                          {provider.models.filter(model => !provider.freeModels?.includes(model)).map((model) => (
-                            <Badge key={model} variant="outline">{model}</Badge>
-                          ))}
-                        </div>
+                        {provider.models.filter(model => !provider.freeModels?.includes(model)).length > 0 && (
+                          <>
+                            <p className="text-xs text-muted-foreground">
+                              Premium models with your key:
+                            </p>
+                            <div className="flex gap-1 flex-wrap">
+                              {provider.models.filter(model => !provider.freeModels?.includes(model)).map((model) => (
+                                <Badge key={model} variant="outline" className="text-xs px-2 py-0">{model}</Badge>
+                              ))}
+                            </div>
+                          </>
+                        )}
                       </div>
-                    ) : (
+                    )}
+                    
+                    {!provider.hasHostKey && (
                       <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          Enter your {provider.name} API key to enable {provider.name} models. Your key is stored locally and securely.
+                        <p className="text-xs text-muted-foreground">
+                          Available models:
                         </p>
-                        <div className="flex gap-2 flex-wrap">
+                        <div className="flex gap-1 flex-wrap">
                           {provider.models.map((model) => (
-                            <Badge key={model} variant="secondary">{model}</Badge>
+                            <Badge key={model} variant="secondary" className="text-xs px-2 py-0">{model}</Badge>
                           ))}
                         </div>
                       </div>
                     )}
                     
                     <div className="space-y-2">
-                      <label htmlFor={`${provider.key}ApiKey`} className="text-sm font-medium text-foreground">
-                        API Key {hasUserApiKey && <span className="text-green-600 dark:text-green-400">(Active)</span>}
+                      <label htmlFor={`${provider.key}ApiKey`} className="text-xs font-medium text-foreground">
+                        API Key
                       </label>
                       <div className="relative">
                         <Input
@@ -339,45 +350,47 @@ export default function Settings() {
                           value={keyState.value}
                           onChange={(e) => updateApiKey(provider.key, { value: e.target.value })}
                           placeholder={provider.placeholder}
-                          className="pr-10"
+                          className="pr-8 text-xs h-8"
                         />
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="absolute right-1 top-1 h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                          className="absolute right-0 top-0 h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                           onClick={() => updateApiKey(provider.key, { showKey: !keyState.showKey })}
                         >
-                          {keyState.showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          {keyState.showKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                         </Button>
                       </div>
                       
                       {keyState.value && !provider.validateKey(keyState.value) && (
-                        <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                          {provider.validationMessage}
+                        <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                          Key format may be incorrect
                         </p>
                       )}
                     </div>
 
-                    <a 
-                      href={provider.helpUrl} 
-                      target="_blank" 
-                      className="text-sm text-blue-500 hover:underline inline-block" 
-                      rel="noreferrer"
-                    >
-                      Create {provider.name} API Key
-                    </a>
+                    <div className="text-center">
+                      <a 
+                        href={provider.helpUrl} 
+                        target="_blank" 
+                        className="text-xs text-blue-500 hover:underline" 
+                        rel="noreferrer"
+                      >
+                        Get {provider.name} API Key
+                      </a>
+                    </div>
 
                     {/* Status Messages */}
                     {keyState.saveStatus === 'success' && (
-                      <div className="text-sm text-green-600 dark:text-green-400">
-                        ✓ {provider.name} API key saved successfully
+                      <div className="text-xs text-green-600 dark:text-green-400">
+                        ✓ Saved successfully
                       </div>
                     )}
                     
                     {keyState.saveStatus === 'error' && (
-                      <div className="text-sm text-red-600 dark:text-red-400">
-                        ✗ Failed to save {provider.name} API key. Please try again.
+                      <div className="text-xs text-red-600 dark:text-red-400">
+                        ✗ Failed to save. Please try again.
                       </div>
                     )}
 
@@ -385,20 +398,22 @@ export default function Settings() {
                       <Button
                         onClick={() => handleSave(provider.key)}
                         disabled={keyState.isSaving || (!keyState.value.trim() && provider.required)}
-                        className="flex items-center gap-2"
+                        size="sm"
+                        className="flex-1 gap-1 text-xs h-8"
                       >
-                        <Save className="h-4 w-4" />
-                        {keyState.isSaving ? 'Saving...' : `Save ${provider.name} Key`}
+                        <Save className="h-3 w-3" />
+                        {keyState.isSaving ? 'Saving...' : 'Save'}
                       </Button>
                       
                       {hasUserApiKey && (
                         <Button
                           onClick={() => handleClear(provider.key)}
                           variant="outline"
-                          className="flex items-center gap-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                          size="sm"
+                          className="gap-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs h-8"
                         >
-                          <Trash2 className="h-4 w-4" />
-                          Clear Key
+                          <Trash2 className="h-3 w-3" />
+                          Clear
                         </Button>
                       )}
                     </div>

@@ -351,7 +351,7 @@ export function CodeBlock({
   const selectedTheme = isDark ? tokyoNightStormTheme : tokyoNightLightTheme;
 
   // Dynamic styles based on theme
-  const containerClass = "bg-secondary rounded-lg border border-border overflow-hidden";
+  const containerClass = "bg-secondary rounded-lg border border-border overflow-hidden max-w-full w-full";
 
   const headerClass = "flex items-center justify-between px-4 py-2 border-b border-border bg-background";
 
@@ -359,11 +359,20 @@ export function CodeBlock({
 
   const buttonClass = "h-6 text-foreground hover:text-muted-foreground hover:bg-muted text-xs border-0";
 
-  const preClass = "p-4 overflow-x-auto bg-secondary font-mono text-sm leading-6";
+  const preClass = "p-4 overflow-x-auto bg-secondary font-mono text-sm leading-6 max-w-full w-full";
 
   return (
-    <div className="not-prose flex flex-col my-4">
-      <div className={containerClass}>
+    <div 
+      className="not-prose my-4 w-full" 
+      style={{ 
+        maxWidth: '100%', 
+        overflow: 'hidden',
+        minWidth: '0',
+        display: 'grid',
+        gridTemplateColumns: '1fr'
+      }}
+    >
+      <div className={`${containerClass} w-full`} style={{ maxWidth: '100%', width: '100%' }}>
         <div className={headerClass}>
           <span className={labelClass}>
             {language || 'code'}
@@ -400,6 +409,10 @@ export function CodeBlock({
                 ...style,
                 backgroundColor: 'transparent',
                 fontFeatureSettings: '"calt" 0, "liga" 0',
+                width: '100%',
+                maxWidth: '100%',
+                minWidth: '0',
+                boxSizing: 'border-box',
               }}
               {...props}
             >

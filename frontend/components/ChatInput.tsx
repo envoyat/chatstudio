@@ -101,8 +101,8 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   }
 
   return (
-    <div className="fixed bottom-0 w-full max-w-3xl">
-      <div className="bg-secondary rounded-t-[20px] p-2 pb-0 w-full">
+    <div className="w-full">
+      <div className="bg-background/80 backdrop-blur-md border border-border/50 rounded-[20px] p-4 w-full shadow-lg">
         <div className="relative">
           <div className="flex flex-col">
             <Textarea
@@ -116,7 +116,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
               aria-label="Chat message input"
               disabled={isStreaming}
             />
-            <div className="h-14 flex items-center px-2">
+            <div className="h-12 flex items-center px-2 pt-2">
               <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-1">
                   <ChatModelDropdown />
