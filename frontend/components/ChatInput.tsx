@@ -99,7 +99,7 @@ function PureChatInput({ threadId, isStreaming, convexThreadId, onConvexThreadId
   }
 
   return (
-    <div className="fixed bottom-0 w-[92%] max-w-3xl">
+    <div className="fixed bottom-0 w-[92%] max-w-3xl left-1/2 -translate-x-1/2">
       <div className="bg-secondary rounded-t-[20px] p-2 pb-0 w-full">
         <div className="relative">
           <div className="flex flex-col">
