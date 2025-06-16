@@ -5,19 +5,22 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
-import { Settings2, ChevronRight, X } from "lucide-react"
+import { Settings2, ChevronLeft, ChevronRight, X } from "lucide-react"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getModelTokenLimit } from "@/lib/token-limits"
 import { useUILayoutStore } from "@/frontend/stores/UILayoutStore"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 
 interface ChatRunSettingsProps {
   className?: string
 }
 
 export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
-  const { isSettingsOpen, setSettingsOpen, isSidebarOpen } = useUILayoutStore()
+  const { isSettingsOpen, setSettingsOpen } = useUILayoutStore()
   const settingsRef = React.useRef<HTMLDivElement>(null)
+  const isMobile = useIsMobile()
   
   const {
     temperature,
@@ -34,10 +37,16 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
     useChatRunSettingsStore.getState().setMaxTokens(newMaxTokens)
   }, [selectedModel])
 
-  // Handle click outside
+  // Handle click outside - only on mobile
   React.useEffect(() => {
+    if (!isMobile) return
+    
     const handleClickOutside = (event: MouseEvent) => {
-      if (isSettingsOpen && settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+      // Check if the click is on the toggle button or its children
+      const toggleButton = document.querySelector('[data-settings-toggle]')
+      const isToggleButtonClick = toggleButton && (toggleButton === event.target || toggleButton.contains(event.target as Node))
+      
+      if (isSettingsOpen && settingsRef.current && !settingsRef.current.contains(event.target as Node) && !isToggleButtonClick) {
         setSettingsOpen(false)
       }
     }
@@ -46,7 +55,7 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isSettingsOpen, setSettingsOpen])
+  }, [isSettingsOpen, setSettingsOpen, isMobile])
 
   const handleTemperatureChange = (value: number[]) => {
     setTemperature(value[0])
@@ -69,40 +78,42 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
   const isAtLimit = tokenUsagePercentage > 95
 
   const togglePanel = () => {
-    console.log('Toggle clicked, current state:', isSettingsOpen)
-    const newSettingsState = !isSettingsOpen
-    console.log('Setting new state to:', newSettingsState)
-    setSettingsOpen(newSettingsState)
+    setSettingsOpen(!isSettingsOpen)
   }
-
-  // Debug effect to monitor state changes
-  React.useEffect(() => {
-    console.log('Settings panel state changed:', isSettingsOpen)
-  }, [isSettingsOpen])
 
   return (
     <>
-      {/* Toggle Button - Always visible on all screen sizes */}
-      {!isSettingsOpen && (
-        <Button
-          onClick={togglePanel}
-          variant="ghost"
-          size="icon"
-          className="fixed right-4 top-4 z-[60] h-8 w-8 rounded-full transition-all duration-300 ease-in-out"
-        >
-          <Settings2 className="h-4 w-4" />
-        </Button>
+      {/* Mobile backdrop blur */}
+      {isMobile && isSettingsOpen && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setSettingsOpen(false)}
+        />
       )}
 
-      {/* Side Panel */}
+      {/* Settings Panel Container - Desktop: shifts content, Mobile: overlays */}
       <div
-        ref={settingsRef}
-        className={`fixed right-0 top-0 z-[100] h-full transition-transform duration-300 ease-in-out ${
-          isSettingsOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-        style={{ width: '320px' }}
+        className={cn(
+          "transition-all duration-300 ease-in-out",
+          isMobile 
+            ? cn(
+                "fixed right-0 top-0 z-50 h-full",
+                isSettingsOpen ? "translate-x-0 w-80" : "translate-x-full w-80"
+              )
+            : cn(
+                "relative h-full",
+                isSettingsOpen ? "w-80" : "w-0"
+              )
+        )}
       >
-        <div className="h-full bg-background/95 backdrop-blur-sm border-l shadow-xl">
+        <div
+          ref={settingsRef}
+          className={cn(
+            "h-full bg-background/95 backdrop-blur-sm shadow-xl",
+            isMobile ? "border-l" : "border-l",
+            !isSettingsOpen && !isMobile && "hidden"
+          )}
+        >
           <div className="flex flex-col h-full p-4 space-y-4">
             {/* Header with Close Button and Theme Toggle */}
             <div className="flex items-center justify-between">
@@ -206,15 +217,24 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
             </div>
           </div>
         </div>
-
-        {/* Overlay when panel is open (optional, for mobile) */}
-        {isSettingsOpen && (
-          <div 
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm -z-10 md:hidden"
-            onClick={() => setSettingsOpen(false)}
-          />
-        )}
       </div>
+
+      {/* Toggle Button - Positioned based on panel state */}
+      {!isSettingsOpen && (
+        <Button
+          onClick={togglePanel}
+          variant="ghost"
+          size="icon"
+          data-settings-toggle
+          className={cn(
+            "fixed top-4 z-[60] h-8 w-8 rounded-full bg-background/50 backdrop-blur-sm",
+            "transition-all duration-300 ease-in-out",
+            isMobile ? "right-4" : "right-4"
+          )}
+        >
+          <Settings2 className="h-4 w-4" />
+        </Button>
+      )}
     </>
   )
 } 

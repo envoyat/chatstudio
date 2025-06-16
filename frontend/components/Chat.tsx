@@ -63,29 +63,32 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   }, [messages]);
 
   return (
-    <div className="relative w-full h-screen flex flex-col">
-      {/* ChatRunSettings positioned absolutely in top right corner */}
-      <ChatRunSettings />
-      
-      <main className="flex-1 overflow-y-auto">
-        <div className="w-full max-w-3xl pt-10 pb-44 mx-auto px-4">
-          <Messages
-            messages={messages}
-            isStreaming={isStreaming}
-            convexThreadId={convexThreadId}
-          />
-        </div>
-      </main>
-      <div className="absolute bottom-0 left-0 right-11">
-        <div className="w-full max-w-3xl mx-auto px-4 pb-4">
-          <ChatInput
-            threadId={initialThreadUuid}
-            convexThreadId={convexThreadId}
-            onConvexThreadIdChange={setConvexThreadId}
-            isStreaming={isStreaming}
-          />
+    <div className="relative w-full h-screen flex">
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col">
+        <main className="flex-1 overflow-y-auto">
+          <div className="w-full max-w-3xl pt-10 pb-44 mx-auto px-4">
+            <Messages
+              messages={messages}
+              isStreaming={isStreaming}
+              convexThreadId={convexThreadId}
+            />
+          </div>
+        </main>
+        <div className="absolute bottom-0 left-0 right-0">
+          <div className="w-full max-w-3xl mx-auto px-4 pb-4">
+            <ChatInput
+              threadId={initialThreadUuid}
+              convexThreadId={convexThreadId}
+              onConvexThreadIdChange={setConvexThreadId}
+              isStreaming={isStreaming}
+            />
+          </div>
         </div>
       </div>
+      
+      {/* Settings panel - shifts content on desktop, overlays on mobile */}
+      <ChatRunSettings />
     </div>
   )
 }
