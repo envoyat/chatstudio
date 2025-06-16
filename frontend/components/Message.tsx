@@ -23,7 +23,8 @@ function PureMessage({
   const [mode, setMode] = useState<"view" | "edit">("view")
 
   const isStreaming = message.role === MESSAGE_ROLES.ASSISTANT && (message.data as { isComplete?: boolean })?.isComplete === false;
-  const toolCalls = (message.data as { toolCalls?: any[] })?.toolCalls;
+  const toolCalls = (message.data as { toolCalls?: any[] })?.toolCalls
+  const toolOutputs = (message.data as { toolOutputs?: any[] })?.toolOutputs
 
   const handleSetMode = (newMode: "view" | "edit") => {
     if (isStreaming && newMode === "edit") return;
@@ -49,7 +50,7 @@ function PureMessage({
         ) : (
           <>
             {toolCalls && toolCalls.length > 0 ? (
-              <ToolCallDisplay toolCalls={toolCalls} />
+              <ToolCallDisplay toolCalls={toolCalls} toolOutputs={toolOutputs} />
             ) : (
               message.content && <MarkdownRenderer content={message.content} id={message.id} />
             )}
