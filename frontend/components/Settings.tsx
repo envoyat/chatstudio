@@ -55,7 +55,8 @@ const providers: Provider[] = [
     helpUrl: 'https://console.anthropic.com/settings/keys',
     models: ['Claude 4 Sonnet', 'Claude Haiku 3.5', 'Claude 4 Opus'],
     validateKey: (key: string) => key.startsWith('sk-ant-') && key.length > 20,
-    validationMessage: 'API key format appears incorrect. Anthropic keys typically start with "sk-ant-"'
+    validationMessage: 'API key format appears incorrect. Anthropic keys typically start with "sk-ant-"',
+    required: true,
   },
   {
     key: 'openai',
@@ -64,7 +65,8 @@ const providers: Provider[] = [
     helpUrl: 'https://platform.openai.com/settings/organization/api-keys',
     models: ['GPT-4.1', 'GPT-4.1-mini', 'GPT-4.1-nano', 'o4-mini'],
     validateKey: (key: string) => key.startsWith('sk-') && key.length > 40,
-    validationMessage: 'API key format appears incorrect. OpenAI keys typically start with "sk-"'
+    validationMessage: 'API key format appears incorrect. OpenAI keys typically start with "sk-"',
+    required: true,
   },
   {
     key: 'openrouter',
@@ -73,7 +75,8 @@ const providers: Provider[] = [
     helpUrl: 'https://openrouter.ai/keys',
     models: ['deepseek/deepseek-r1-0528:free', 'google/gemini-2.0-flash-exp:free'],
     validateKey: (key: string) => key.startsWith('sk-or-') && key.length > 20,
-    validationMessage: 'API key format appears incorrect. OpenRouter keys typically start with "sk-or-"'
+    validationMessage: 'API key format appears incorrect. OpenRouter keys typically start with "sk-or-"',
+    required: true,
   }
 ]
 

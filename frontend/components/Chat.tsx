@@ -6,8 +6,7 @@ import ChatRunSettings from "./ChatRunSettings"
 import ScrollIndicator from "./ScrollIndicator"
 import type { UIMessage } from "ai"
 import { useModelStore } from "@/frontend/stores/ModelStore"
-import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
-import { useCreateThread, useThreadByUuid, useMessagesByUuid } from "@/lib/convex-hooks"
+import { useConversationByUuid, useMessagesByUuid } from "@/lib/convex-hooks"
 import { useTokenCounter } from "@/frontend/hooks/useTokenCounter"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useConvexAuth } from "convex/react"
@@ -21,18 +20,18 @@ interface ChatProps {
 export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   const selectedModel = useModelStore((state) => state.selectedModel)
   
-  const [convexThreadId, setConvexThreadId] = useState<Id<"threads"> | null>(null)
+  const [convexConversationId, setConvexConversationId] = useState<Id<"conversations"> | null>(null)
   const { isAuthenticated } = useConvexAuth()
   const scrollContainerRef = useRef<HTMLElement>(null)
 
   // Find the Convex thread ID from the URL's UUID.
-  const existingThread = useThreadByUuid(isAuthenticated ? initialThreadUuid : undefined)
+  const existingThread = useConversationByUuid(isAuthenticated ? initialThreadUuid : undefined)
   
   useEffect(() => {
     if (isAuthenticated && existingThread) {
-      setConvexThreadId(existingThread._id);
+      setConvexConversationId(existingThread._id);
     } else {
-      setConvexThreadId(null);
+      setConvexConversationId(null);
     }
   }, [isAuthenticated, existingThread, initialThreadUuid]);
 
@@ -42,15 +41,65 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   // Memoize the conversion from Convex doc format to the UI's UIMessage format.
   const messages: UIMessage[] = useMemo(() => {
     if (!isAuthenticated || !convexMessages) return []
-    return convexMessages.map((msg) => ({
-      id: msg._id,
-      role: msg.role,
-      content: msg.content,
-      parts: msg.parts || [{ type: "text", text: msg.content }],
-      createdAt: new Date(msg.createdAt),
-      // NEW: Pass the streaming status to the UI component
-      data: { isComplete: msg.isComplete ?? true },
-    }))
+    return convexMessages.map((msg) => {
+      const data: Record<string, any> = {
+        isComplete: msg.isComplete ?? true,
+      };
+      
+      if (msg.toolCalls) {
+        data.toolCalls = msg.toolCalls;
+      }
+      
+      if (msg.toolOutputs) {
+        data.toolOutputs = msg.toolOutputs;
+      }
+      
+      // Transform parts to match AI SDK's expected types
+      let parts: any[] = [];
+      if (msg.parts && msg.parts.length > 0) {
+        parts = msg.parts.map((part: any) => {
+          // Handle tool-call parts by converting to tool-invocation
+          if (part.type === 'tool-call') {
+            return {
+              type: 'tool-invocation',
+              toolInvocation: {
+                state: 'call',
+                toolCallId: part.id,
+                toolName: part.name,
+                args: part.args,
+              }
+            };
+          }
+          // Handle tool-result parts by converting to tool-invocation
+          else if (part.type === 'tool-result') {
+            return {
+              type: 'tool-invocation',
+              toolInvocation: {
+                state: 'result',
+                toolCallId: part.toolCallId,
+                toolName: '', // We don't have the tool name in the result
+                args: {},
+                result: part.result,
+              }
+            };
+          }
+          // Pass through other part types as-is
+          return part;
+        });
+      } else {
+        // Fallback to text part if no parts are provided
+        parts = [{ type: "text", text: msg.content }];
+      }
+      
+      return {
+        id: msg._id,
+        role: msg.role as "user" | "assistant" | "system" | "data",
+        content: msg.content,
+        parts,
+        createdAt: new Date(msg.createdAt),
+        data,
+      };
+    })
   }, [convexMessages, isAuthenticated])
 
   // Count tokens in messages and update store
@@ -81,7 +130,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
               <Messages
                 messages={messages}
                 isStreaming={isStreaming}
-                convexThreadId={convexThreadId}
+                convexConversationId={convexConversationId}
               />
             </div>
             
@@ -89,8 +138,8 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
             <div className="sticky bottom-0 pb-4">
               <ChatInput
                 threadId={initialThreadUuid}
-                convexThreadId={convexThreadId}
-                onConvexThreadIdChange={setConvexThreadId}
+                convexConversationId={convexConversationId}
+                onConvexConversationIdChange={setConvexConversationId}
                 isStreaming={isStreaming}
               />
             </div>

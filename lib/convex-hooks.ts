@@ -2,40 +2,40 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 
-// Thread hooks
-export function useThreads() {
-  return useQuery(api.threads.listWithLastMessage);
+// Conversation hooks
+export function useConversations() {
+  return useQuery(api.conversations.listWithLastMessage);
 }
 
-export function useThread(threadId: Id<"threads"> | undefined) {
-  return useQuery(api.threads.get, threadId ? { threadId } : "skip");
+export function useConversation(conversationId: Id<"conversations"> | undefined) {
+  return useQuery(api.conversations.getById, conversationId ? { conversationId } : "skip");
 }
 
-export function useThreadByUuid(uuid: string | undefined) {
-  return useQuery(api.threads.getByUuid, uuid ? { uuid } : "skip");
+export function useConversationByUuid(uuid: string | undefined) {
+  return useQuery(api.conversations.getByUuid, uuid ? { uuid } : "skip");
 }
 
-export function useCreateThread() {
-  return useMutation(api.threads.create);
+export function useCreateConversation() {
+  return useMutation(api.conversations.create);
 }
 
-export function useUpdateThread() {
-  return useMutation(api.threads.update);
+export function useUpdateConversation() {
+  return useMutation(api.conversations.update);
 }
 
-export function useDeleteThread() {
-  return useMutation(api.threads.remove);
+export function useDeleteConversation() {
+  return useMutation(api.conversations.remove);
 }
 
 // Message hooks
-export function useMessages(threadId: Id<"threads"> | undefined) {
-  return useQuery(api.messages.list, threadId ? { threadId } : "skip");
+export function useMessages(conversationId: Id<"conversations"> | undefined) {
+  return useQuery(api.messages.list, conversationId ? { conversationId } : "skip");
 }
 
 export function useMessagesByUuid(uuid: string | undefined) {
-  const thread = useThreadByUuid(uuid);
-  const threadId = thread?._id;
-  return useQuery(api.messages.list, threadId ? { threadId } : "skip");
+  const conversation = useConversationByUuid(uuid);
+  const conversationId = conversation?._id;
+  return useQuery(api.messages.list, conversationId ? { conversationId } : "skip");
 }
 
 export function useSendMessage() {

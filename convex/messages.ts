@@ -2,25 +2,61 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { MESSAGE_ROLES } from "./constants";
+import type { MessagePart, ToolCall, ToolOutput } from "./types";
+
+// Convex validator for message parts
+const messagePartValidator = v.union(
+  v.object({
+    type: v.literal('text'),
+    text: v.string(),
+  }),
+  v.object({
+    type: v.literal('tool-call'),
+    id: v.string(),
+    name: v.string(),
+    args: v.any(),
+  }),
+  v.object({
+    type: v.literal('tool-result'),
+    toolCallId: v.string(),
+    result: v.any(),
+  })
+);
+
+const toolCallValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+  args: v.any(), // Keep as any for Convex validator compatibility
+});
+
+const toolOutputValidator = v.object({
+  toolCallId: v.string(),
+  result: v.any(), // Keep as any for Convex validator compatibility
+});
 
 export const send = mutation({
   args: {
-    threadId: v.id("threads"),
+    conversationId: v.id("conversations"),
     content: v.string(),
     model: v.string(),
     userApiKey: v.optional(v.string()),
+    isWebSearchEnabled: v.optional(v.boolean()),
   },
   returns: v.null(),
-  handler: async (ctx, { threadId, content, model, userApiKey }) => {
+  handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      throw new Error("Not authorised to send messages");
+      throw new Error("Must be authenticated to send messages");
     }
 
-    // 1. Insert the user's message into the database.
-    // User messages are always considered "complete".
-    await ctx.db.insert("messages", {
-      threadId,
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation || conversation.userId !== identity.subject) {
+      throw new Error("Not authorised to send messages to this conversation");
+    }
+
+    // 1. Insert the user's message to the database.
+    const userMessageId = await ctx.db.insert("messages", {
+      conversationId,
       content,
       role: MESSAGE_ROLES.USER,
       createdAt: Date.now(),
@@ -30,7 +66,7 @@ export const send = mutation({
     // 2. Create a placeholder message for the assistant's response.
     // This will appear on the client instantly.
     const assistantMessageId = await ctx.db.insert("messages", {
-      threadId,
+      conversationId,
       content: "", // Start with an empty body
       role: MESSAGE_ROLES.ASSISTANT,
       createdAt: Date.now(),
@@ -40,7 +76,7 @@ export const send = mutation({
     // 3. Fetch the latest message history to provide context to the AI.
     const messageHistory = await ctx.db
       .query("messages")
-      .withIndex("by_thread_and_created", (q) => q.eq("threadId", threadId))
+      .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", conversationId))
       .order("asc")
       .collect();
 
@@ -49,12 +85,14 @@ export const send = mutation({
     await ctx.scheduler.runAfter(0, internal.ai.chat, {
       messageHistory,
       assistantMessageId,
+      conversationId,
       model,
       userApiKey,
+      isWebSearchEnabled,
     });
 
-    // 5. Update thread's lastMessageAt
-    await ctx.db.patch(threadId, {
+    // 5. Update conversation's lastMessageAt
+    await ctx.db.patch(conversationId, {
       lastMessageAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -65,18 +103,20 @@ export const send = mutation({
 
 export const list = query({
   args: {
-    threadId: v.id("threads"),
+    conversationId: v.id("conversations"),
   },
   returns: v.array(
     v.object({
       _id: v.id("messages"),
       _creationTime: v.number(),
-      threadId: v.id("threads"),
+      conversationId: v.id("conversations"),
       content: v.string(),
       role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
-      parts: v.optional(v.any()),
+      parts: v.optional(v.array(messagePartValidator)),
       createdAt: v.number(),
       isComplete: v.optional(v.boolean()),
+      toolCalls: v.optional(v.array(toolCallValidator)),
+      toolOutputs: v.optional(v.array(toolOutputValidator)),
     }),
   ),
   handler: async (ctx, args) => {
@@ -84,42 +124,63 @@ export const list = query({
     if (!identity) {
         return [];
     }
-    const thread = await ctx.db.get(args.threadId);
-    if (!thread || thread.userId !== identity.subject) {
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation || conversation.userId !== identity.subject) {
       return [];
     }
 
     return await ctx.db
       .query("messages")
-      .withIndex("by_thread_and_created", (q) => q.eq("threadId", args.threadId))
+      .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", args.conversationId))
       .order("asc")
       .collect();
   },
 });
 
-// NEW: Internal mutation to append content to the streaming message.
 export const update = internalMutation({
-  args: { messageId: v.id("messages"), content: v.string() },
+  args: { 
+    messageId: v.id("messages"), 
+    parts: v.optional(v.array(messagePartValidator)),
+    content: v.optional(v.string()),
+    toolCalls: v.optional(v.array(toolCallValidator)),
+    toolOutputs: v.optional(v.array(toolOutputValidator)),
+  },
   returns: v.null(),
-  handler: async (ctx, { messageId, content }) => {
-    await ctx.db.patch(messageId, { content });
+  handler: async (ctx, { messageId, parts, content, toolCalls, toolOutputs }) => {
+    const updates: {
+      parts?: MessagePart[];
+      content?: string;
+      toolCalls?: ToolCall[];
+      toolOutputs?: ToolOutput[];
+    } = {};
+    
+    if (parts !== undefined) updates.parts = parts;
+    if (content !== undefined) updates.content = content;
+    if (toolCalls !== undefined) updates.toolCalls = toolCalls;
+    if (toolOutputs !== undefined) updates.toolOutputs = toolOutputs;
+    
+    await ctx.db.patch(messageId, updates);
     return null;
   },
 });
 
-// NEW: Internal mutation to finalise the message and mark it as complete.
 export const finalise = internalMutation({
   args: { messageId: v.id("messages"), content: v.string() },
   returns: v.null(),
   handler: async (ctx, { messageId, content }) => {
-    await ctx.db.patch(messageId, { content, isComplete: true });
+    await ctx.db.patch(messageId, {
+      content,
+      isComplete: true,
+      // We no longer clear tool calls/outputs on finalise,
+      // as they are part of the final message state.
+    });
     return null;
   },
 });
 
 export const deleteTrailing = mutation({
   args: {
-    threadId: v.id("threads"),
+    conversationId: v.id("conversations"),
     fromCreatedAt: v.number(),
     inclusive: v.optional(v.boolean()),
   },
@@ -130,16 +191,16 @@ export const deleteTrailing = mutation({
       throw new Error("Must be authenticated to delete messages");
     }
 
-    const thread = await ctx.db.get(args.threadId);
-    if (!thread || thread.userId !== identity.subject) {
-      throw new Error("Not authorised to delete messages from this thread");
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation || conversation.userId !== identity.subject) {
+      throw new Error("Not authorised to delete messages from this conversation");
     }
 
     const inclusive = args.inclusive ?? true;
 
     const messages = await ctx.db
       .query("messages")
-      .withIndex("by_thread_and_created", (q) => q.eq("threadId", args.threadId))
+      .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", args.conversationId))
       .collect();
 
     const messagesToDelete = messages.filter((msg) =>
@@ -165,16 +226,14 @@ export const deleteTrailing = mutation({
 
 export const internalCreateSummary = internalMutation({
   args: {
-    threadId: v.id("threads"),
+    conversationId: v.id("conversations"),
     messageId: v.id("messages"),
     content: v.string(),
   },
   returns: v.id("messageSummaries"),
   handler: async (ctx, args) => {
-    // No explicit authentication check here, as it's an internal mutation
-    // Assumed to be called by an authenticated action.
     const summaryId = await ctx.db.insert("messageSummaries", {
-      threadId: args.threadId,
+      conversationId: args.conversationId,
       messageId: args.messageId,
       content: args.content,
       createdAt: Date.now(),
@@ -188,27 +247,22 @@ export const generateTitleForMessage = mutation({
     prompt: v.string(),
     isTitle: v.optional(v.boolean()),
     messageId: v.id("messages"),
-    threadId: v.id("threads"),
-    userGoogleApiKey: v.optional(v.string()), // Pass user's key to the action
+    conversationId: v.id("conversations"),
+    userGoogleApiKey: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // The client calls this mutation.
-    // We then schedule the internal AI action to do the actual work.
-    // This allows the client call to complete quickly, and the AI work
-    // happens in the background, safely integrated with Convex's scheduler.
     await ctx.scheduler.runAfter(
-      0, // Run immediately
-      internal.ai.generateTitle, // Reference the internal action
+      0,
+      internal.ai.generateTitle,
       {
         prompt: args.prompt,
         isTitle: args.isTitle,
         messageId: args.messageId,
-        threadId: args.threadId,
+        conversationId: args.conversationId,
         userGoogleApiKey: args.userGoogleApiKey,
       },
     );
-    // No direct return from this mutation is needed, as the action handles DB updates.
     return null;
   },
 }); 

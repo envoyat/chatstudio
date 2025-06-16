@@ -2,8 +2,38 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { MESSAGE_ROLES } from "./constants";
 
+// Convex validator for message parts
+const messagePartValidator = v.union(
+  v.object({
+    type: v.literal('text'),
+    text: v.string(),
+  }),
+  v.object({
+    type: v.literal('tool-call'),
+    id: v.string(),
+    name: v.string(),
+    args: v.any(),
+  }),
+  v.object({
+    type: v.literal('tool-result'),
+    toolCallId: v.string(),
+    result: v.any(),
+  })
+);
+
+const toolCallValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+  args: v.any(),
+});
+
+const toolOutputValidator = v.object({
+  toolCallId: v.string(),
+  result: v.any(),
+});
+
 export default defineSchema({
-  threads: defineTable({
+  conversations: defineTable({
     uuid: v.string(), // UUID for URL routing
     title: v.string(),
     userId: v.string(), // Clerk user ID
@@ -16,22 +46,24 @@ export default defineSchema({
     .index("by_uuid", ["uuid"]),
 
   messages: defineTable({
-    threadId: v.id("threads"),
+    conversationId: v.id("conversations"),
     content: v.string(),
     role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
-    parts: v.optional(v.any()), // UIMessage parts
+    parts: v.optional(v.array(messagePartValidator)),
     createdAt: v.number(),
     isComplete: v.optional(v.boolean()), // ADDED: To track streaming status
+    toolCalls: v.optional(v.array(toolCallValidator)),
+    toolOutputs: v.optional(v.array(toolOutputValidator)),
   })
-    .index("by_thread", ["threadId"])
-    .index("by_thread_and_created", ["threadId", "createdAt"]),
+    .index("by_conversation", ["conversationId"])
+    .index("by_conversation_and_created", ["conversationId", "createdAt"]),
 
   messageSummaries: defineTable({
-    threadId: v.id("threads"),
+    conversationId: v.id("conversations"),
     messageId: v.id("messages"),
     content: v.string(),
     createdAt: v.number(),
   })
-    .index("by_thread", ["threadId"])
+    .index("by_conversation", ["conversationId"])
     .index("by_message", ["messageId"]),
 }); 

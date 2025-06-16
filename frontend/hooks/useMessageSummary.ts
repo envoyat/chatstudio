@@ -18,35 +18,36 @@ export const useMessageSummary = () => {
       body?: {
         isTitle?: boolean
         messageId: string
-        threadId: string
+        conversationId: string
         convexMessageId?: Id<"messages">
-        convexThreadId?: Id<"threads">
+        convexConversationId?: Id<"conversations">
       }
     }
   ) => {
-    const { isTitle = false, messageId, threadId, convexMessageId, convexThreadId } = options?.body || {}
+    const { isTitle = false, messageId, conversationId, convexMessageId, convexConversationId } = options?.body || {}
 
-    if (!messageId || !threadId) {
-      console.error("MessageId and ThreadId are required for message summary.")
+    if (!messageId || !conversationId) {
+      console.error("MessageId and ConversationId are required for message summary.")
       toast.error("Failed to generate summary: Missing IDs.")
       return
     }
 
     try {
-      if (isAuthenticated && convexMessageId && convexThreadId) {
+      if (isAuthenticated && convexMessageId && convexConversationId) {
         const userGoogleApiKey = hasUserKey("google") ? (getKey("google") || undefined) : undefined
 
         await generateTitleMutation({
           prompt,
           isTitle,
           messageId: convexMessageId,
-          threadId: convexThreadId,
+          conversationId: convexConversationId,
           userGoogleApiKey,
         })
       }
-    } catch (error: any) {
-      console.error("Error generating title:", error)
-      toast.error(error.message || "Failed to generate title")
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate title";
+      console.error("Error generating title:", errorMessage);
+      toast.error(errorMessage);
     }
   }
 

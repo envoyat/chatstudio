@@ -16,11 +16,11 @@ import { useMemo } from "react"
 export default function MessageEditor({
   message,
   setMode,
-  convexThreadId,
+  convexConversationId,
 }: {
   message: UIMessage
   setMode: Dispatch<SetStateAction<"view" | "edit">>
-  convexThreadId: Id<"threads"> | null
+  convexConversationId: Id<"conversations"> | null
 }) {
   const [draftContent, setDraftContent] = useState(message.content)
   const deleteTrailingMessages = useMutation(api.messages.deleteTrailing)
@@ -34,7 +34,7 @@ export default function MessageEditor({
   }, [selectedModel]);
 
   const handleSaveAndResubmit = async () => {
-    if (!convexThreadId || !message.createdAt) {
+    if (!convexConversationId || !message.createdAt) {
       toast.error("Cannot edit this message.");
       return;
     }
@@ -42,7 +42,7 @@ export default function MessageEditor({
     try {
       // Delete this message and all subsequent messages.
       await deleteTrailingMessages({
-        threadId: convexThreadId,
+        conversationId: convexConversationId,
         fromCreatedAt: message.createdAt.getTime(),
         inclusive: true, // Include the message being edited
       })
@@ -50,7 +50,7 @@ export default function MessageEditor({
       // Send the new, edited message, which will trigger a new AI response.
       const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) || undefined : undefined;
       await sendMessage({
-        threadId: convexThreadId,
+        conversationId: convexConversationId,
         content: draftContent,
         model: selectedModel,
         userApiKey: userApiKeyForModel,

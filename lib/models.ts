@@ -11,7 +11,7 @@ export const AI_MODELS = [
   "GPT-4.1",
   "GPT-4.1-mini",
   "GPT-4.1-nano",
-  "o3",
+  // "o3",
   "o4-mini",
   "DeepSeek R1",
   "Gemini 2.0 Flash (OpenRouter)",
@@ -82,12 +82,12 @@ export const MODEL_CONFIGS = {
     headerKey: "X-OpenAI-API-Key",
     openRouterModelId: "openai/gpt-4o-mini",
   },
-  "o3": {
-    modelId: "o3-2025-04-16",
-    provider: "openai",
-    headerKey: "X-OpenAI-API-Key",
-    openRouterModelId: "openai/o1-preview",
-  },
+  // "o3": {
+  //   modelId: "o3-2025-04-16",
+  //   provider: "openai",
+  //   headerKey: "X-OpenAI-API-Key",
+  //   openRouterModelId: "openai/o1-preview",
+  // },
   "o4-mini": {
     modelId: "o4-mini-2025-04-16",
     provider: "openai",
