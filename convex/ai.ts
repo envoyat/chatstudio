@@ -9,6 +9,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 
+import { createSystemPrompt } from "./prompts";
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
 import { MESSAGE_ROLES } from "./constants";
@@ -35,48 +36,7 @@ type ChatParams = {
   isWebSearchEnabled?: boolean;
 };
 
-// System prompt function that includes current date and web search instructions
-function createSystemPrompt(isWebSearchEnabled: boolean = false): CoreMessage {
-  const currentDate = new Date().toLocaleDateString('en-AU', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    timeZone: 'UTC'
-  });
-  
-  console.log(`[createSystemPrompt] Generated date: ${currentDate}`);
 
-  let systemContent = `Current Date: ${currentDate}
-
-You are a helpful AI assistant. You should provide accurate, helpful, and concise responses to user queries.
-
-Key Guidelines:
-- Always strive to be helpful, accurate, and informative
-- If you're unsure about something, acknowledge your uncertainty
-- Use clear, well-structured responses
-- Maintain a friendly and professional tone`;
-
-  if (isWebSearchEnabled) {
-    systemContent += `
-
-Web Search Instructions:
-- You have access to a web search tool that can help you find current information
-- Use web search when users ask about:
-  * Recent events, news, or current affairs
-  * Real-time data (stock prices, weather, sports scores)
-  * Specific facts that may have changed recently
-  * Information that requires up-to-date sources
-- When using web search, be specific and concise with your search queries
-- Always cite the source of web search information when presenting results
-- If web search returns no useful results, inform the user clearly`;
-  }
-
-  return {
-    role: MESSAGE_ROLES.SYSTEM as "system",
-    content: systemContent
-  };
-}
 
 // --- generateTitle Internal Action ---
 // This action generates a title/summary for a message and schedules database updates.
@@ -189,7 +149,7 @@ export const chat = internalAction({
         throw new Error(`Unsupported provider: ${provider}`);
       }
 
-      const systemPrompt = createSystemPrompt(isWebSearchEnabled);
+      const systemPrompt = createSystemPrompt(aiModelName, isWebSearchEnabled);
       
       // Filter out the last message if it's an empty assistant placeholder, which Anthropic doesn't allow.
       const filteredHistory = messageHistory.filter(
