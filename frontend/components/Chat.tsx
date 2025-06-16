@@ -75,9 +75,9 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
           {/* Custom scroll indicator */}
           <ScrollIndicator containerRef={scrollContainerRef} />
           
-          <div className="w-full max-w-3xl mx-auto px-4">
+          <div className="w-full max-w-3xl mx-auto px-4 min-h-full flex flex-col">
             {/* Messages with padding to account for sticky input */}
-            <div className="pt-10 pb-32">
+            <div className="flex-1 pt-10 pb-32">
               <Messages
                 messages={messages}
                 isStreaming={isStreaming}
