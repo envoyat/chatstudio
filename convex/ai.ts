@@ -188,9 +188,20 @@ export const chat = internalAction({
       }
 
       const systemPrompt = createSystemPrompt(isWebSearchEnabled);
+      
+      // Filter out the last message if it's an empty assistant placeholder, which Anthropic doesn't allow.
+      const filteredHistory = messageHistory.filter(
+        (message, index) =>
+          !(
+            index === messageHistory.length - 1 &&
+            message.role === MESSAGE_ROLES.ASSISTANT &&
+            message.content === ""
+          )
+      );
+
       const messagesForSdk: CoreMessage[] = [
         systemPrompt,
-        ...messageHistory.map(({ content, role }) => ({
+        ...filteredHistory.map(({ content, role }) => ({
           role: role as "user" | "assistant" | "system",
           content,
         })),
