@@ -25,8 +25,6 @@ import { convertConvexThread } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
 import { ROUTES } from "@/frontend/constants/routes"
 import { MESSAGE_ROLES } from "@/convex/constants"
-import { useUILayoutStore } from "@/frontend/stores/UILayoutStore"
-
 // A simple spinner component for the sidebar.
 const StreamingSpinner = () => (
   <Loader2 size={16} className="animate-spin text-primary" />
@@ -37,7 +35,6 @@ export default function ChatSidebar() {
   const location = useLocation()
   const { state, toggle } = useSidebar()
   const { isAuthenticated } = useConvexAuth()
-  const { isSettingsOpen, setSettingsOpen, isSidebarOpen, setSidebarOpen } = useUILayoutStore()
   const sidebarRef = React.useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
 
@@ -57,18 +54,29 @@ export default function ChatSidebar() {
   // Extract thread ID from various possible paths
   const currentThreadId = location.pathname.includes("/chat/") ? location.pathname.split("/chat/")[1] : null
   const isCollapsed = state === "collapsed"
-
-  // Sync sidebar state with store
+  
+  // Debug state changes
   React.useEffect(() => {
-    setSidebarOpen(!isCollapsed)
-  }, [isCollapsed, setSidebarOpen])
+    console.log('[Sidebar] State changed:', state, 'isCollapsed:', isCollapsed)
+  }, [state, isCollapsed])
+
+
 
   // Handle click outside (only on mobile)
   React.useEffect(() => {
     if (!isMobile) return
     
     const handleClickOutside = (event: MouseEvent) => {
-      if (!isCollapsed && sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
+      console.log('[Sidebar] Click outside detected')
+      console.log('[Sidebar] isCollapsed:', isCollapsed)
+      console.log('[Sidebar] Contains target:', sidebarRef.current?.contains(event.target as Node))
+      
+      // Check if the click is on the toggle button or its children
+      const toggleButton = document.querySelector('[data-sidebar-toggle]')
+      const isToggleButtonClick = toggleButton && (toggleButton === event.target || toggleButton.contains(event.target as Node))
+      
+      if (!isCollapsed && sidebarRef.current && !sidebarRef.current.contains(event.target as Node) && !isToggleButtonClick) {
+        console.log('[Sidebar] Toggling from click outside')
         toggle()
       }
     }
@@ -97,15 +105,13 @@ export default function ChatSidebar() {
 
   // Handle sidebar toggle
   const handleSidebarToggle = () => {
+    console.log('[Sidebar] Toggle button clicked')
+    console.log('[Sidebar] Current state:', state)
+    console.log('[Sidebar] isCollapsed:', isCollapsed)
+    console.log('[Sidebar] isMobile:', isMobile)
     toggle()
+    console.log('[Sidebar] Toggle called')
   }
-
-  // Only close settings when sidebar is explicitly opened
-  React.useEffect(() => {
-    if (!isCollapsed && isSettingsOpen) {
-      setSettingsOpen(false)
-    }
-  }, [isCollapsed, isSettingsOpen, setSettingsOpen])
 
   return (
     <>
@@ -113,7 +119,10 @@ export default function ChatSidebar() {
       {isMobile && !isCollapsed && (
         <div 
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"
-          onClick={() => toggle()}
+          onClick={() => {
+            console.log('[Sidebar] Backdrop clicked')
+            toggle()
+          }}
         />
       )}
       
@@ -205,6 +214,7 @@ export default function ChatSidebar() {
       <Button
         variant="ghost"
         size="icon"
+        data-sidebar-toggle
         className={cn(
           "fixed top-3 z-[60] h-8 w-8 rounded-full bg-background/50 backdrop-blur-sm",
           "transition-all duration-300 ease-in-out",
