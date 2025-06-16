@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
-import { Settings2, ChevronRight, X, Search } from "lucide-react"
+import { Settings2, X, Globe } from "lucide-react"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getModelTokenLimit } from "@/lib/token-limits"
@@ -144,7 +144,7 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
               <h3 className="text-sm font-medium text-muted-foreground">Tools</h3>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <Globe className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">Web Search</span>
                 </div>
                 <Button

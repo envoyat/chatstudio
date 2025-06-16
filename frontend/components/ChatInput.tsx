@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { memo, useState, useCallback, useMemo } from "react"
-import { ChevronDown, Check, ArrowUpIcon, Search } from "lucide-react"
+import { ChevronDown, Check, ArrowUpIcon, Globe } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -127,7 +127,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
                     className="h-8 px-2"
                     aria-label="Toggle web search"
                   >
-                    <Search className="h-4 w-4 mr-1" />
+                    <Globe className="h-4 w-4 mr-1" />
                     Web
                   </Button>
                 </div>
