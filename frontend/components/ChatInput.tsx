@@ -248,8 +248,8 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className={`bg-[#d6d8df] dark:bg-[#2c324a] backdrop-blur-md border border-[#c1c2c7] dark:border-[#1b1e2e] rounded-[20px] p-4 w-full transition-colors shadow-sm ${
-        isDragging ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : ''
+      <div className={`bg-white/20 dark:bg-black/20 backdrop-blur-xl border border-white/30 dark:border-white/10 rounded-[20px] p-4 w-full transition-colors shadow-lg ${
+        isDragging ? 'border-blue-400/60 bg-blue-50/30 dark:bg-blue-900/30' : ''
       }`}>
         
         {/* Staged files preview */}
