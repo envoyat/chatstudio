@@ -31,20 +31,20 @@ const FilePreview = ({ file, onRemove }: { file: File; onRemove: () => void }) =
   const previewUrl = useMemo(() => URL.createObjectURL(file), [file])
   
   return (
-    <div className="relative group w-20 h-20 border rounded-lg p-1 flex items-center justify-center bg-gray-100">
+    <div className="relative group w-20 h-20 border border-[#c1c2c7] dark:border-[#1b1e2e] rounded-lg p-1 flex items-center justify-center bg-[#e6e7ed] dark:bg-[#1f2335]">
       {isImage ? (
         <img src={previewUrl} alt={file.name} className="max-w-full max-h-full object-contain rounded" />
       ) : (
-        <FileIcon className="w-10 h-10 text-gray-500" />
+        <FileIcon className="w-10 h-10 text-[#888b94] dark:text-[#8089b3]" />
       )}
       <button
         onClick={onRemove}
-        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute -top-2 -right-2 bg-[#f7768e] hover:bg-[#f7768e]/80 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
         aria-label="Remove file"
       >
         <Trash2 className="w-4 h-4" />
       </button>
-      <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1 rounded-b-lg truncate">
+      <div className="absolute bottom-0 left-0 right-0 bg-[#343b59]/80 dark:bg-[#24283b]/80 text-[#e6e7ed] dark:text-[#a9b1d6] text-xs p-1 rounded-b-lg truncate">
         {file.name}
       </div>
     </div>
@@ -248,8 +248,8 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className={`bg-background/80 backdrop-blur-md border rounded-[20px] p-4 w-full transition-colors ${
-        isDragging ? 'border-blue-400 bg-blue-50' : 'border-border/50'
+      <div className={`bg-[#d6d8df] dark:bg-[#2c324a] backdrop-blur-md border border-[#c1c2c7] dark:border-[#1b1e2e] rounded-[20px] p-4 w-full transition-colors shadow-sm ${
+        isDragging ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : ''
       }`}>
         
         {/* Staged files preview */}
@@ -267,8 +267,8 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
 
         {/* Drag overlay */}
         {isDragging && (
-          <div className="absolute inset-0 bg-blue-100/50 border-2 border-dashed border-blue-400 rounded-[20px] flex items-center justify-center z-10">
-            <div className="text-blue-600 font-medium">Drop files here to attach</div>
+          <div className="absolute inset-0 bg-blue-100/50 dark:bg-blue-900/30 border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-[20px] flex items-center justify-center z-10">
+            <div className="text-blue-600 dark:text-blue-400 font-medium">Drop files here to attach</div>
           </div>
         )}
 
@@ -277,7 +277,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
             <Textarea
               id="chat-input"
               value={input}
-              placeholder={stagedFiles.length > 0 ? "Add a message (optional)..." : "What can I do for you?"}
+              placeholder={stagedFiles.length > 0 ? "Add a message (optional)..." : "Type your message here..."}
               className="w-full px-4 py-3 border-none shadow-none bg-transparent placeholder:text-muted-foreground resize-none focus-visible:ring-0 focus-visible:ring-offset-0 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30 scrollbar-thumb-rounded-full min-h-[72px]"
               ref={textareaRef}
               onKeyDown={handleKeyDown}

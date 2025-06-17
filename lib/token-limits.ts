@@ -13,7 +13,7 @@ export const MODEL_TOKEN_LIMITS: Record<AIModel, number> = {
   "GPT-4.1": 1047576,
   "GPT-4.1-mini": 1047576,
   "GPT-4.1-nano": 1047576,
-  "o3": 200000,
+  // "o3": 200000,
   "o4-mini": 200000,
   "DeepSeek R1": 32000,
   "Gemini 2.0 Flash (OpenRouter)": 128000,
