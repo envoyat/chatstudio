@@ -207,16 +207,7 @@ export const listWithLastMessage = query({
           .first(); 
         // Try to get the user's name from Clerk identity or users table
         let ownerName: string | undefined = undefined;
-        // Try to get from users table if it exists
-        // (If you have a users table, uncomment the following lines)
-        // const userDoc = await ctx.db
-        //   .query("users")
-        //   .withIndex("by_userId", (q) => q.eq("userId", conversation.userId))
-        //   .first();
-        // if (userDoc && userDoc.name) {
-        //   ownerName = userDoc.name;
-        // }
-        // Otherwise, fallback to Clerk identity (if this is the current user)
+
         if (conversation.userId === identity.subject && identity.name) {
           ownerName = identity.name;
         }
