@@ -20,6 +20,11 @@ const messagePartValidator = v.union(
     type: v.literal('tool-result'),
     toolCallId: v.string(),
     result: v.any(),
+  }),
+  v.object({
+    type: v.literal('image'),
+    image: v.string(), // Base64 data URL
+    mimeType: v.optional(v.string()),
   })
 );
 
@@ -34,6 +39,13 @@ const toolOutputValidator = v.object({
   result: v.any(), // Keep as any for Convex validator compatibility
 });
 
+// Validator for attachment references
+const attachmentRefValidator = v.object({
+  attachmentId: v.id("attachments"),
+  fileName: v.string(),
+  contentType: v.string(),
+});
+
 export const send = mutation({
   args: {
     conversationId: v.id("conversations"),
@@ -41,9 +53,10 @@ export const send = mutation({
     model: v.string(),
     userApiKey: v.optional(v.string()),
     isWebSearchEnabled: v.optional(v.boolean()),
+    attachmentRefs: v.optional(v.array(attachmentRefValidator)),
   },
   returns: v.null(),
-  handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled }) => {
+  handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled, attachmentRefs }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Must be authenticated to send messages");
@@ -54,11 +67,51 @@ export const send = mutation({
       throw new Error("Not authorised to send messages to this conversation");
     }
 
+    // Process attachments and create message parts
+    const messageParts: MessagePart[] = [];
+    
+    // Add text content as a part
+    if (content.trim()) {
+      messageParts.push({
+        type: 'text',
+        text: content,
+      });
+    }
+
+    // Process attachment references if provided
+    if (attachmentRefs && attachmentRefs.length > 0) {
+      for (const attachmentRef of attachmentRefs) {
+        // Verify the attachment exists and belongs to the user
+        const attachment = await ctx.db.get(attachmentRef.attachmentId);
+        if (!attachment || attachment.userId !== identity.subject) {
+          throw new Error(`Attachment not found or not owned by user: ${attachmentRef.fileName}`);
+        }
+
+        // Get the storage URL for the attachment
+        const attachmentUrl = await ctx.storage.getUrl(attachment.storageId);
+        if (!attachmentUrl) {
+          throw new Error(`Could not get URL for attachment: ${attachmentRef.fileName}`);
+        }
+
+        // Add image part for images
+        if (attachment.contentType.startsWith('image/')) {
+          // For AI processing, we need the base64 data. Since we can't fetch in a mutation,
+          // we'll store the attachment URL and handle this in the AI action
+          messageParts.push({
+            type: 'image',
+            image: attachmentUrl, // We'll convert this to base64 in the AI action
+            mimeType: attachment.contentType,
+          });
+        }
+      }
+    }
+
     // 1. Insert the user's message to the database.
     const userMessageId = await ctx.db.insert("messages", {
       conversationId,
       content,
       role: MESSAGE_ROLES.USER,
+      parts: messageParts.length > 0 ? messageParts : undefined,
       createdAt: Date.now(),
       isComplete: true,
     });

@@ -15,7 +15,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Link, useNavigate, useLocation } from "react-router-dom"
-import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn, Loader2 } from "lucide-react"
+import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn, Loader2, Paperclip } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { memo } from "react"
 import { Authenticated, Unauthenticated, useConvexAuth } from "convex/react"
@@ -268,6 +268,16 @@ const PureFooter = () => {
   return (
     <SidebarFooter className="border-t p-4 space-y-2">
       <Authenticated>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-3 h-10 p-3 hover:bg-accent/50"
+          onClick={() => navigate(ROUTES.ATTACHMENTS)}
+        >
+          <Paperclip size={16} className="text-muted-foreground" />
+          <span className="text-sm font-medium">Attachments</span>
+        </Button>
+        
         <Button
           variant="ghost"
           size="sm"

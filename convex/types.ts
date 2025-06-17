@@ -37,7 +37,8 @@ export interface WebSearchResponse {
 export type MessagePart =
   | { type: 'text'; text: string }
   | { type: 'tool-call'; id: string; name: string; args: Record<string, unknown> }
-  | { type: 'tool-result'; toolCallId: string; result: unknown };
+  | { type: 'tool-result'; toolCallId: string; result: unknown }
+  | { type: 'image'; image: string; mimeType?: string };
 
 // UI Message data structure
 export interface UIMessageData {
@@ -78,6 +79,11 @@ export const messagePartSchema = z.discriminatedUnion('type', [
     toolCallId: z.string(),
     result: z.unknown(),
   }),
+  z.object({
+    type: z.literal('image'),
+    image: z.string(),
+    mimeType: z.string().optional(),
+  }),
 ]);
 
 // Type guards
@@ -91,6 +97,10 @@ export function isToolResult(part: MessagePart): part is Extract<MessagePart, { 
 
 export function isTextPart(part: MessagePart): part is Extract<MessagePart, { type: 'text' }> {
   return part.type === 'text';
+}
+
+export function isImagePart(part: MessagePart): part is Extract<MessagePart, { type: 'image' }> {
+  return part.type === 'image';
 }
 
 // Helper functions

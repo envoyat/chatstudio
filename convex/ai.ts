@@ -31,6 +31,11 @@ const messagePartValidator = v.union(
     type: v.literal('tool-result'),
     toolCallId: v.string(),
     result: v.any(),
+  }),
+  v.object({
+    type: v.literal('image'),
+    image: v.string(), // Base64 data URL or URL
+    mimeType: v.optional(v.string()),
   })
 );
 
@@ -189,12 +194,72 @@ export const chat = internalAction({
           )
       );
 
+      // Convert messages to CoreMessage format, handling multi-modal content
+      const processedMessages: CoreMessage[] = []
+      
+      for (const message of filteredHistory) {
+        if (message.parts && message.parts.length > 0) {
+          // Handle multi-modal messages with parts
+          const content: any[] = []
+          
+          for (const part of message.parts) {
+            if (part.type === 'text') {
+              content.push({ type: 'text', text: part.text })
+            } else if (part.type === 'image') {
+              // Convert URL to base64 if needed for AI models
+              let imageData = part.image
+              if (!imageData.startsWith('data:')) {
+                // If it's a URL, fetch and convert to base64
+                try {
+                  const response = await fetch(imageData)
+                  const buffer = await response.arrayBuffer()
+                  const base64 = Buffer.from(buffer).toString('base64')
+                  imageData = `data:${part.mimeType || 'image/jpeg'};base64,${base64}`
+                } catch (error) {
+                  console.error('Failed to fetch image:', error)
+                  continue // Skip this image if we can't fetch it
+                }
+              }
+              
+              content.push({
+                type: 'image',
+                image: imageData,
+              })
+            }
+          }
+          
+          if (content.length > 0) {
+            // Only user messages can have multi-modal content arrays
+            if (message.role === MESSAGE_ROLES.USER) {
+              processedMessages.push({
+                role: 'user',
+                content,
+              })
+            } else {
+              // For assistant/system messages, extract text content
+              const textContent = content
+                .filter(c => c.type === 'text')
+                .map(c => c.text)
+                .join('')
+              
+              processedMessages.push({
+                role: message.role as "assistant" | "system",
+                content: textContent,
+              })
+            }
+          }
+        } else {
+          // Handle text-only messages
+          processedMessages.push({
+            role: message.role as "user" | "assistant" | "system",
+            content: message.content,
+          })
+        }
+      }
+
       const messagesForSdk: CoreMessage[] = [
         systemPrompt,
-        ...filteredHistory.map(({ content, role }) => ({
-          role: role as "user" | "assistant" | "system",
-          content,
-        })),
+        ...processedMessages,
       ];
 
       const tools = {

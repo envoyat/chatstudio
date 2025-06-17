@@ -3,6 +3,7 @@ export const ROUTES = {
   CHAT: "/chat",
   CHAT_THREAD: (threadId: string) => `/chat/${threadId}`,
   SETTINGS: "/settings",
+  ATTACHMENTS: "/attachments",
 } as const
 
 // Type helper for route paths

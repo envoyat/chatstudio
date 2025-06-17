@@ -3,6 +3,7 @@ import ChatLayout from "./ChatLayout"
 import Home from "./routes/Home"
 import Thread from "./routes/Thread"
 import Settings from "./routes/Settings"
+import AttachmentsPage from "./routes/AttachmentsPage"
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Route path="chat/:id" element={<Thread />} />
         </Route>
         <Route path="/settings" element={<Settings />} />
+        <Route path="/attachments" element={<AttachmentsPage />} />
       </Routes>
     </BrowserRouter>
   )

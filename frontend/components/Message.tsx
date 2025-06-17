@@ -79,6 +79,19 @@ function PureMessage({
         renderedBlocks.push(
           <MarkdownRenderer key={`text-block-${renderedBlocks.length}`} content={part.text} id={`${message.id}-${renderedBlocks.length}`} />
         );
+      } else if ((part as any).type === 'image' && 'image' in (part as any)) {
+        // Handle image attachments - need to cast since AI SDK doesn't include image in part types
+        const imagePart = part as any;
+        renderedBlocks.push(
+          <div key={`image-block-${renderedBlocks.length}`} className="my-2 max-w-md">
+            <img 
+              src={imagePart.image} 
+              alt="Uploaded image" 
+              className="rounded-lg shadow-sm border max-w-full h-auto"
+              loading="lazy"
+            />
+          </div>
+        );
       } else if (part.type === 'file' && 'url' in part) {
         const filePart = part as any; // Type assertion for file part
         renderedBlocks.push(

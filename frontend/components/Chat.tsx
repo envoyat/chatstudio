@@ -83,6 +83,10 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
               }
             };
           }
+          // Handle image parts - pass through as-is for our custom rendering
+          else if (part.type === 'image') {
+            return part; // Keep image parts intact
+          }
           // Pass through other part types as-is
           return part;
         });
