@@ -28,10 +28,10 @@ export default function MessageReasoning({ reasoning, id, isReasoningStreaming }
   }, [isReasoningStreaming]);
 
   return (
-    <div className="my-2 border border-border/50 rounded-lg overflow-hidden">
+    <div className="my-2 rounded-lg overflow-hidden">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/30 transition-colors text-foreground"
         aria-expanded={isExpanded}
         aria-controls={`reasoning-content-${id}`}
       >
@@ -41,15 +41,15 @@ export default function MessageReasoning({ reasoning, id, isReasoningStreaming }
           <ChevronRightIcon className="h-4 w-4" />
         )}
         <span className="font-medium">Reasoning</span>
-        {isReasoningStreaming && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        {isReasoningStreaming && <Loader2 className="h-4 w-4 animate-spin" />}
       </button>
       
       {isExpanded && (
         <div
           id={`reasoning-content-${id}`}
-          className="px-3 py-2 bg-muted/20 border-t border-border/50"
+          className="px-3 py-3 bg-muted/60 dark:bg-muted/80"
         >
-          <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+          <div className="text-sm text-foreground dark:text-foreground whitespace-pre-wrap">
             {reasoning}
           </div>
         </div>
