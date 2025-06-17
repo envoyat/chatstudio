@@ -58,10 +58,11 @@ export const send = mutation({
     model: v.string(),
     userApiKey: v.optional(v.string()),
     isWebSearchEnabled: v.optional(v.boolean()),
+    isThinkingEnabled: v.optional(v.boolean()),
     attachmentRefs: v.optional(v.array(attachmentRefValidator)),
   },
   returns: v.null(),
-  handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled, attachmentRefs }) => {
+  handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled, isThinkingEnabled, attachmentRefs }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Must be authenticated to send messages");
@@ -158,6 +159,7 @@ export const send = mutation({
       model,
       userApiKey,
       isWebSearchEnabled,
+      isThinkingEnabled,
       newAttachmentIds, // Pass attachment IDs for token tracking
     });
 

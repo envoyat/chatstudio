@@ -2,13 +2,15 @@
 
 import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
-import { Settings2, X, Globe, Paperclip } from "lucide-react"
+import { Settings2, X, Globe, Paperclip, BrainCircuit } from "lucide-react"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getModelTokenLimit } from "@/lib/token-limits"
+import { getModelConfig } from "@/lib/models"
 import { useUILayoutStore } from "@/frontend/stores/UILayoutStore"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -34,8 +36,10 @@ export default function ChatRunSettings({ className, conversationId, messages }:
     tokenCount,
     maxTokens,
     isWebSearchEnabled,
+    isThinkingEnabled,
     setTemperature,
     toggleWebSearch,
+    toggleThinking,
   } = useChatRunSettingsStore()
   
   const selectedModel = useModelStore((state) => state.selectedModel)
@@ -49,6 +53,7 @@ export default function ChatRunSettings({ className, conversationId, messages }:
   
   // Determine if the chat is new and has no messages yet
   const isNewChat = messages.length === 0
+  const modelConfig = getModelConfig(selectedModel)
   
   // Update max tokens when model changes
   React.useEffect(() => {
@@ -213,6 +218,32 @@ export default function ChatRunSettings({ className, conversationId, messages }:
                 Enable web search to get up-to-date information about recent events, current affairs, and real-time data.
               </p>
             </div>
+
+            <Separator />
+
+            {/* Thinking Toggle */}
+            {modelConfig.supportsReasoning && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground">Thinking</h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BrainCircuit className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Enable Reasoning</span>
+                  </div>
+                  <Switch
+                    checked={modelConfig.canToggleThinking ? isThinkingEnabled : true}
+                    onCheckedChange={modelConfig.canToggleThinking ? toggleThinking : undefined}
+                    disabled={!modelConfig.canToggleThinking}
+                    aria-label="Toggle model thinking"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {modelConfig.canToggleThinking
+                    ? "Allow the model to show its reasoning steps before answering."
+                    : "This model's reasoning feature is always on."}
+                </p>
+              </div>
+            )}
 
             <Separator />
 

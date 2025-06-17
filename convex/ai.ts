@@ -70,6 +70,7 @@ type ChatParams = {
   conversationId: Doc<"conversations">["_id"];
   userApiKey?: string;
   isWebSearchEnabled?: boolean;
+  isThinkingEnabled?: boolean;
   newAttachmentIds?: Doc<"attachments">["_id"][];
 };
 
@@ -155,10 +156,11 @@ export const chat = internalAction({
     conversationId: v.id("conversations"),
     userApiKey: v.optional(v.string()),
     isWebSearchEnabled: v.optional(v.boolean()),
+    isThinkingEnabled: v.optional(v.boolean()),
     newAttachmentIds: v.optional(v.array(v.id("attachments"))),
   },
   returns: v.null(),
-  handler: async (ctx, { messageHistory, assistantMessageId, model, conversationId, userApiKey, isWebSearchEnabled, newAttachmentIds }: ChatParams) => {
+  handler: async (ctx, { messageHistory, assistantMessageId, model, conversationId, userApiKey, isWebSearchEnabled, isThinkingEnabled, newAttachmentIds }: ChatParams) => {
     try {
       const aiModelName = model as AIModel;
       const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName as keyof typeof MODEL_CONFIGS];
@@ -280,13 +282,15 @@ export const chat = internalAction({
 
       // Prepare provider-specific options if the model supports reasoning
       let providerOptions: any = {};
-      if (modelConfig.supportsReasoning) {
+      if (
+        modelConfig.supportsReasoning &&
+        (isThinkingEnabled || !modelConfig.canToggleThinking)
+      ) {
         if (provider === 'google') {
           providerOptions.google = { thinkingConfig: { includeThoughts: true } };
         } else if (provider === 'anthropic') {
           providerOptions.anthropic = { thinking: { type: 'enabled' as const, budgetTokens: 8000 } };
         }
-        // Add other providers that support reasoning here in the future
       }
 
       const result = await streamText({

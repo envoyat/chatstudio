@@ -25,6 +25,8 @@ export type ModelConfig = {
   headerKey: string
   openRouterModelId?: string
   isUsingHostKey?: boolean
+  supportsReasoning?: boolean
+  canToggleThinking?: boolean
 }
 
 export const MODEL_CONFIGS = {
@@ -33,12 +35,16 @@ export const MODEL_CONFIGS = {
     provider: "google",
     headerKey: "X-Google-API-Key",
     openRouterModelId: "google/gemini-pro-1.5",
+    supportsReasoning: true,
+    canToggleThinking: false,
   },
   "Gemini 2.5 Flash": {
     modelId: "gemini-2.5-flash-preview-04-17",
     provider: "google",
     headerKey: "X-Google-API-Key",
     openRouterModelId: "google/gemini-flash-1.5",
+    supportsReasoning: true,
+    canToggleThinking: false,
   },
   "Gemini 2.0 Flash": {
     modelId: "gemini-2.0-flash",
@@ -51,6 +57,8 @@ export const MODEL_CONFIGS = {
     provider: "anthropic",
     headerKey: "X-Anthropic-API-Key",
     openRouterModelId: "anthropic/claude-3.5-sonnet",
+    supportsReasoning: true,
+    canToggleThinking: true,
   },
   "Claude Haiku 3.5": {
     modelId: "claude-3-5-haiku-20241022",
@@ -63,6 +71,8 @@ export const MODEL_CONFIGS = {
     provider: "anthropic",
     headerKey: "X-Anthropic-API-Key",
     openRouterModelId: "anthropic/claude-3-opus",
+    supportsReasoning: true,
+    canToggleThinking: true,
   },
   "GPT-4.1": {
     modelId: "gpt-4.1",
@@ -93,12 +103,16 @@ export const MODEL_CONFIGS = {
     provider: "openai",
     headerKey: "X-OpenAI-API-Key",
     openRouterModelId: "openai/o1-mini",
+    supportsReasoning: true,
+    canToggleThinking: false,
   },
   "DeepSeek R1": {
     modelId: "deepseek/deepseek-r1-0528:free",
     provider: "openrouter",
     headerKey: "X-OpenRouter-API-Key",
     openRouterModelId: "deepseek/deepseek-r1-0528:free",
+    supportsReasoning: true,
+    canToggleThinking: true,
   },
   "Gemini 2.0 Flash (OpenRouter)": {
     modelId: "google/gemini-2.0-flash-exp:free",
