@@ -16,13 +16,15 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { AttachmentItem } from "./AttachmentItem"
 import type { Id } from "@/convex/_generated/dataModel"
+import type { UIMessage } from "ai"
 
 interface ChatRunSettingsProps {
   className?: string
   conversationId: Id<"conversations"> | null
+  messages: UIMessage[]
 }
 
-export default function ChatRunSettings({ className, conversationId }: ChatRunSettingsProps) {
+export default function ChatRunSettings({ className, conversationId, messages }: ChatRunSettingsProps) {
   const { isSettingsOpen, setSettingsOpen } = useUILayoutStore()
   const settingsRef = React.useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
@@ -38,11 +40,15 @@ export default function ChatRunSettings({ className, conversationId }: ChatRunSe
   
   const selectedModel = useModelStore((state) => state.selectedModel)
   
-  // Fetch attachments for the current conversation
+  // Conditionally fetch attachments. If it's a new chat (no messages),
+  // we can skip the query entirely.
   const attachments = useQuery(
     api.attachments.getAttachmentsForConversation,
-    conversationId ? { conversationId } : "skip"
+    messages.length > 0 && conversationId ? { conversationId } : "skip"
   )
+  
+  // Determine if the chat is new and has no messages yet
+  const isNewChat = messages.length === 0
   
   // Update max tokens when model changes
   React.useEffect(() => {
@@ -217,15 +223,26 @@ export default function ChatRunSettings({ className, conversationId }: ChatRunSe
                 Attachments
               </h3>
               <div className="border rounded-lg bg-background max-h-96 overflow-y-auto">
-                {attachments === undefined && (
+                {/* New, more precise rendering logic */}
+                {isNewChat ? (
+                  // If it's a brand new chat, immediately show the empty state.
+                  <div className="p-4 text-center text-muted-foreground text-sm">
+                    No attachments in this conversation.
+                  </div>
+                ) : attachments === undefined ? (
+                  // Only show loading if it's an existing chat and data is being fetched.
                   <div className="p-4 text-center text-muted-foreground text-sm">Loading...</div>
+                ) : attachments.length === 0 ? (
+                  // Show empty state if the query returned no attachments.
+                  <div className="p-4 text-center text-muted-foreground text-sm">
+                    No attachments in this conversation.
+                  </div>
+                ) : (
+                  // Render the list of attachments.
+                  attachments.map((attachment) => (
+                    <AttachmentItem key={attachment._id} attachment={attachment} />
+                  ))
                 )}
-                {attachments && attachments.length === 0 && (
-                  <div className="p-4 text-center text-muted-foreground text-sm">No attachments in this conversation.</div>
-                )}
-                {attachments && attachments.map((attachment) => (
-                  <AttachmentItem key={attachment._id} attachment={attachment} />
-                ))}
               </div>
             </div>
 
