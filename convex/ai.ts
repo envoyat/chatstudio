@@ -376,7 +376,6 @@ export const chat = internalAction({
               result: part.result,
             });
             await updateMessage();
-            console.log(`[ai.chat] Tool result for ${part.toolName}:`, part.result);
             break;
           }
           case 'error': {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
@@ -8,21 +8,24 @@ import { Loader2 } from "lucide-react"
 interface MessageReasoningProps {
   reasoning: string
   id: string
-  isStreaming: boolean
+  isReasoningStreaming: boolean
 }
 
-export default function MessageReasoning({ reasoning, id, isStreaming }: MessageReasoningProps) {
-  const [isExpanded, setIsExpanded] = useState(isStreaming)
+export default function MessageReasoning({ reasoning, id, isReasoningStreaming }: MessageReasoningProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const hasBeenStreaming = useRef(false);
 
   if (!reasoning?.trim()) {
     return null
   }
 
   useEffect(() => {
-    if (isStreaming) {
+    // If reasoning starts streaming, and we haven't already forced it open, expand it.
+    if (isReasoningStreaming && !hasBeenStreaming.current) {
       setIsExpanded(true);
+      hasBeenStreaming.current = true;
     }
-  }, [isStreaming]);
+  }, [isReasoningStreaming]);
 
   return (
     <div className="my-2 border border-border/50 rounded-lg overflow-hidden">
@@ -38,7 +41,7 @@ export default function MessageReasoning({ reasoning, id, isStreaming }: Message
           <ChevronRightIcon className="h-4 w-4" />
         )}
         <span className="font-medium">Reasoning</span>
-        {isStreaming && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+        {isReasoningStreaming && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
       </button>
       
       {isExpanded && (

@@ -27,6 +27,11 @@ function PureMessage({
   const messageData = message.data as UIMessageData | undefined;
   const isStreaming = message.role === 'assistant' && messageData?.isComplete === false;
 
+  const hasReasoningData = (message.data as any)?.reasoning || message.parts?.some(p => p.type === 'reasoning');
+  const hasTextContent = message.parts?.some(p => p.type === 'text' && (p as any).text.trim() !== '');
+
+  const isReasoningStreaming = isStreaming && !!hasReasoningData && !hasTextContent;
+
   // Pre-process parts to group consecutive tool calls
   const renderedBlocks = [];
   let currentToolCalls: ToolCall[] = [];
@@ -80,7 +85,7 @@ function PureMessage({
         const reasoningPart = part as any;
         const reasoningText = (message as any).reasoning ?? reasoningPart.text;
         renderedBlocks.push(
-          <MessageReasoning key={`reasoning-block-${renderedBlocks.length}`} reasoning={reasoningText} id={`${message.id}-reasoning`} isStreaming={isStreaming} />
+          <MessageReasoning key={`reasoning-block-${renderedBlocks.length}`} reasoning={reasoningText} id={`${message.id}-reasoning`} isReasoningStreaming={isReasoningStreaming} />
         );
       }
 
@@ -155,7 +160,7 @@ function PureMessage({
     setMode(newMode);
   }
 
-  const hasTextContent = messageParts.some(part => part.type === 'text' && 'text' in part);
+  const hasTextContentForControls = messageParts.some(part => part.type === 'text' && 'text' in part);
 
   return (
     <div role="article" className={cn("flex flex-col", message.role === MESSAGE_ROLES.USER ? "items-end" : "items-start")}>
@@ -178,7 +183,7 @@ function PureMessage({
           renderedBlocks.map((block, i) => <div key={i}>{block}</div>)
         )}
         
-        {mode === "view" && !isStreaming && hasTextContent && (
+        {mode === "view" && !isStreaming && hasTextContentForControls && (
           <MessageControls
             message={message}
             messages={messages}
