@@ -5,19 +5,26 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
-import { Settings2, X, Globe } from "lucide-react"
+import { Settings2, X, Globe, Paperclip } from "lucide-react"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getModelTokenLimit } from "@/lib/token-limits"
 import { useUILayoutStore } from "@/frontend/stores/UILayoutStore"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import { AttachmentItem } from "./AttachmentItem"
+import type { Id } from "@/convex/_generated/dataModel"
+import type { UIMessage } from "ai"
 
 interface ChatRunSettingsProps {
   className?: string
+  conversationId: Id<"conversations"> | null
+  messages: UIMessage[]
 }
 
-export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
+export default function ChatRunSettings({ className, conversationId, messages }: ChatRunSettingsProps) {
   const { isSettingsOpen, setSettingsOpen } = useUILayoutStore()
   const settingsRef = React.useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
@@ -32,6 +39,16 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
   } = useChatRunSettingsStore()
   
   const selectedModel = useModelStore((state) => state.selectedModel)
+  
+  // Conditionally fetch attachments. If it's a new chat (no messages),
+  // we can skip the query entirely.
+  const attachments = useQuery(
+    api.attachments.getAttachmentsForConversation,
+    messages.length > 0 && conversationId ? { conversationId } : "skip"
+  )
+  
+  // Determine if the chat is new and has no messages yet
+  const isNewChat = messages.length === 0
   
   // Update max tokens when model changes
   React.useEffect(() => {
@@ -111,7 +128,7 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
         <div
           ref={settingsRef}
           className={cn(
-            "h-full bg-background/95 backdrop-blur-sm shadow-xl",
+            "h-full bg-background/95 backdrop-blur-sm",
             isMobile ? "border-l" : "border-l",
             !isSettingsOpen && !isMobile && "hidden"
           )}
@@ -195,6 +212,38 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
               <p className="text-xs text-muted-foreground">
                 Enable web search to get up-to-date information about recent events, current affairs, and real-time data.
               </p>
+            </div>
+
+            <Separator />
+
+            {/* Attachments Section */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Paperclip className="h-4 w-4" />
+                Attachments
+              </h3>
+              <div className="border rounded-lg bg-background max-h-96 overflow-y-auto">
+                {/* New, more precise rendering logic */}
+                {isNewChat ? (
+                  // If it's a brand new chat, immediately show the empty state.
+                  <div className="p-4 text-center text-muted-foreground text-sm">
+                    No attachments in this conversation.
+                  </div>
+                ) : attachments === undefined ? (
+                  // Only show loading if it's an existing chat and data is being fetched.
+                  <div className="p-4 text-center text-muted-foreground text-sm">Loading...</div>
+                ) : attachments.length === 0 ? (
+                  // Show empty state if the query returned no attachments.
+                  <div className="p-4 text-center text-muted-foreground text-sm">
+                    No attachments in this conversation.
+                  </div>
+                ) : (
+                  // Render the list of attachments.
+                  attachments.map((attachment) => (
+                    <AttachmentItem key={attachment._id} attachment={attachment} />
+                  ))
+                )}
+              </div>
             </div>
 
             <Separator />

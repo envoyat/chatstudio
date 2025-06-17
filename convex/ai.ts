@@ -31,6 +31,11 @@ const messagePartValidator = v.union(
     type: v.literal('tool-result'),
     toolCallId: v.string(),
     result: v.any(),
+  }),
+  v.object({
+    type: v.literal('image'),
+    image: v.string(), // Base64 data URL or URL
+    mimeType: v.optional(v.string()),
   })
 );
 
@@ -61,6 +66,7 @@ type ChatParams = {
   conversationId: Doc<"conversations">["_id"];
   userApiKey?: string;
   isWebSearchEnabled?: boolean;
+  newAttachmentIds?: Doc<"attachments">["_id"][];
 };
 
 // --- generateTitle Internal Action ---
@@ -145,9 +151,10 @@ export const chat = internalAction({
     conversationId: v.id("conversations"),
     userApiKey: v.optional(v.string()),
     isWebSearchEnabled: v.optional(v.boolean()),
+    newAttachmentIds: v.optional(v.array(v.id("attachments"))),
   },
   returns: v.null(),
-  handler: async (ctx, { messageHistory, assistantMessageId, model, conversationId, userApiKey, isWebSearchEnabled }: ChatParams) => {
+  handler: async (ctx, { messageHistory, assistantMessageId, model, conversationId, userApiKey, isWebSearchEnabled, newAttachmentIds }: ChatParams) => {
     try {
       const aiModelName = model as AIModel;
       const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName as keyof typeof MODEL_CONFIGS];
@@ -189,12 +196,72 @@ export const chat = internalAction({
           )
       );
 
+      // Convert messages to CoreMessage format, handling multi-modal content
+      const processedMessages: CoreMessage[] = []
+      
+      for (const message of filteredHistory) {
+        if (message.parts && message.parts.length > 0) {
+          // Handle multi-modal messages with parts
+          const content: any[] = []
+          
+          for (const part of message.parts) {
+            if (part.type === 'text') {
+              content.push({ type: 'text', text: part.text })
+            } else if (part.type === 'image') {
+              // Convert URL to base64 if needed for AI models
+              let imageData = part.image
+              if (!imageData.startsWith('data:')) {
+                // If it's a URL, fetch and convert to base64
+                try {
+                  const response = await fetch(imageData)
+                  const buffer = await response.arrayBuffer()
+                  const base64 = Buffer.from(buffer).toString('base64')
+                  imageData = `data:${part.mimeType || 'image/jpeg'};base64,${base64}`
+                } catch (error) {
+                  console.error('Failed to fetch image:', error)
+                  continue // Skip this image if we can't fetch it
+                }
+              }
+              
+              content.push({
+                type: 'image',
+                image: imageData,
+              })
+            }
+          }
+          
+          if (content.length > 0) {
+            // Only user messages can have multi-modal content arrays
+            if (message.role === MESSAGE_ROLES.USER) {
+              processedMessages.push({
+                role: 'user',
+                content,
+              })
+            } else {
+              // For assistant/system messages, extract text content
+              const textContent = content
+                .filter(c => c.type === 'text')
+                .map(c => c.text)
+                .join('')
+              
+              processedMessages.push({
+                role: message.role as "assistant" | "system",
+                content: textContent,
+              })
+            }
+          }
+        } else {
+          // Handle text-only messages
+          processedMessages.push({
+            role: message.role as "user" | "assistant" | "system",
+            content: message.content,
+          })
+        }
+      }
+
       const messagesForSdk: CoreMessage[] = [
         systemPrompt,
-        ...filteredHistory.map(({ content, role }) => ({
-          role: role as "user" | "assistant" | "system",
-          content,
-        })),
+        ...processedMessages,
       ];
 
       const tools = {
@@ -296,6 +363,22 @@ export const chat = internalAction({
         messageId: assistantMessageId,
         content: finalContent,
       });
+
+      // Update token counts for any attachments used in this message turn
+      if (newAttachmentIds && newAttachmentIds.length > 0) {
+        // For now, we'll use a placeholder token count since the AI SDK doesn't 
+        // always provide usage information in the streaming response.
+        // In a real implementation, you might want to:
+        // 1. Use a separate token counting library
+        // 2. Store token counts from the AI provider if available
+        // 3. Estimate based on message content length
+        const estimatedTokens = Math.max(100, finalContent.length / 4); // Rough estimate
+        
+        await ctx.runMutation(internal.attachments.updateTokenCountForAttachments, {
+          attachmentIds: newAttachmentIds,
+          promptTokens: Math.round(estimatedTokens),
+        });
+      }
 
       // Check if this is the first message exchange in the conversation
       // (only 2 messages: user's first message and assistant's response)

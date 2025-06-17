@@ -232,7 +232,7 @@ export default function ChatSidebar() {
 
 function PureHeader() {
   return (
-    <SidebarHeader className="border-b px-4 py-4">
+    <SidebarHeader className="px-4 py-4 !border-b-0">
       <div className="flex items-center justify-center mb-4">
         <div className="flex items-center gap-2">
           <MessageSquare size={22} className="shrink-0" />
@@ -266,7 +266,7 @@ const PureFooter = () => {
   const { user } = useUser()
 
   return (
-    <SidebarFooter className="border-t p-4 space-y-2">
+    <SidebarFooter className="p-4 space-y-2 !border-t-0">
       <Authenticated>
         <Button
           variant="ghost"

@@ -18,6 +18,11 @@ const messagePartValidator = v.union(
     type: v.literal('tool-result'),
     toolCallId: v.string(),
     result: v.any(),
+  }),
+  v.object({
+    type: v.literal('image'),
+    image: v.string(), // Base64 data URL
+    mimeType: v.optional(v.string()),
   })
 );
 
@@ -66,4 +71,16 @@ export default defineSchema({
   })
     .index("by_conversation", ["conversationId"])
     .index("by_message", ["messageId"]),
+
+  attachments: defineTable({
+    userId: v.string(), // The identifier of the user who uploaded the file
+    storageId: v.id("_storage"), // The ID of the file in Convex File Storage
+    fileName: v.string(),
+    contentType: v.string(),
+    createdAt: v.number(),
+    conversationId: v.optional(v.id("conversations")), // Link to the conversation
+    promptTokens: v.optional(v.number()), // Tokens for the message turn this was included in
+  })
+    .index("by_userId", ["userId"])
+    .index("by_conversation", ["conversationId"]), // Index for quickly fetching by conversation
 }); 

@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { memo, useState, useCallback, useMemo } from "react"
-import { ChevronDown, Check, ArrowUpIcon, Globe } from "lucide-react"
+import { memo, useState, useCallback, useMemo, useRef } from "react"
+import { ChevronDown, Check, ArrowUpIcon, Globe, Paperclip, Trash2, File as FileIcon, Image as ImageIcon } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -25,9 +25,38 @@ interface ChatInputProps {
   onConvexConversationIdChange: React.Dispatch<React.SetStateAction<Id<"conversations"> | null>>
 }
 
+// A component to render a preview of the staged file
+const FilePreview = ({ file, onRemove }: { file: File; onRemove: () => void }) => {
+  const isImage = file.type.startsWith('image/')
+  const previewUrl = useMemo(() => URL.createObjectURL(file), [file])
+  
+  return (
+    <div className="relative group w-20 h-20 border border-[#c1c2c7] dark:border-[#1b1e2e] rounded-lg p-1 flex items-center justify-center bg-[#e6e7ed] dark:bg-[#1f2335]">
+      {isImage ? (
+        <img src={previewUrl} alt={file.name} className="max-w-full max-h-full object-contain rounded" />
+      ) : (
+        <FileIcon className="w-10 h-10 text-[#888b94] dark:text-[#8089b3]" />
+      )}
+      <button
+        onClick={onRemove}
+        className="absolute -top-2 -right-2 bg-[#f7768e] hover:bg-[#f7768e]/80 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        aria-label="Remove file"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
+      <div className="absolute bottom-0 left-0 right-0 bg-[#343b59]/80 dark:bg-[#24283b]/80 text-[#e6e7ed] dark:text-[#a9b1d6] text-xs p-1 rounded-b-lg truncate">
+        {file.name}
+      </div>
+    </div>
+  )
+}
+
 function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexConversationIdChange }: ChatInputProps) {
   const [input, setInput] = useState("")
+  const [stagedFiles, setStagedFiles] = useState<File[]>([])
+  const [isDragging, setIsDragging] = useState(false)
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({ minHeight: 72, maxHeight: 200 })
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
   
@@ -35,16 +64,117 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   const { getKey, hasUserKey } = useAPIKeyStore()
   const { isWebSearchEnabled, toggleWebSearch } = useChatRunSettingsStore()
   
-  const isDisabled = useMemo(() => !input.trim() || isStreaming, [input, isStreaming])
+  const isDisabled = useMemo(() => (!input.trim() && stagedFiles.length === 0) || isStreaming, [input, stagedFiles.length, isStreaming])
   
   const { isAuthenticated } = useConvexAuth()
   const convexCreateConversation = useCreateConversation()
   const sendMessage = useMutation(api.messages.send)
+  const generateUploadUrl = useMutation(api.attachments.generateUploadUrl)
+  const saveAttachment = useMutation(api.attachments.saveAttachment)
+
+  // File handling functions
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (files) {
+      setStagedFiles((prev) => [...prev, ...Array.from(files)])
+    }
+    // Reset input value so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const removeStagedFile = (index: number) => {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const files = e.dataTransfer.files
+    if (files) {
+      setStagedFiles((prev) => [...prev, ...Array.from(files)])
+    }
+  }
+
+  // Convert files to base64 for sending
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => {
+        const result = reader.result as string
+        // Remove the data URL prefix to get just the base64 data
+        const base64 = result.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = error => reject(error)
+    })
+  }
+
+  // Upload files to Convex storage and get attachment references
+  const uploadFiles = async (files: File[]) => {
+    const attachmentRefs = []
+    
+    for (const file of files) {
+      try {
+        // Get upload URL
+        const uploadUrl = await generateUploadUrl({})
+        
+        // Upload file
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": file.type },
+          body: file,
+        })
+        
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload ${file.name}`)
+        }
+        
+        const { storageId } = await uploadResponse.json()
+        
+        // Save attachment metadata
+        const attachmentId = await saveAttachment({
+          storageId: storageId,
+          fileName: file.name,
+          contentType: file.type,
+        })
+        
+        attachmentRefs.push({
+          attachmentId,
+          fileName: file.name,
+          contentType: file.type,
+        })
+      } catch (error) {
+        console.error(`Failed to upload ${file.name}:`, error)
+        throw error
+      }
+    }
+    
+    return attachmentRefs
+  }
 
   const handleSubmit = useCallback(async () => {
     if (isDisabled) return
+    
     const currentInput = input.trim()
+    const currentFiles = stagedFiles
+    
+    // Clear input and files
     setInput("")
+    setStagedFiles([])
     adjustHeight(true)
 
     let currentConvexConversationId = convexConversationId
@@ -66,26 +196,37 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
       const modelConfig = getModelConfig(selectedModel)
       const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined
       
+      // Process attachments
+      let attachments
+      if (currentFiles.length > 0) {
+        attachments = await uploadFiles(currentFiles)
+      }
+
       const payload = {
         conversationId: currentConvexConversationId,
         content: currentInput,
         model: selectedModel,
         userApiKey: userApiKeyForModel || undefined,
         isWebSearchEnabled: isWebSearchEnabled,
+        attachmentRefs: attachments,
       }
 
       try {
         await sendMessage(payload)
       } catch (error) {
         console.error("[ChatInput] 'messages.send' mutation call failed:", error)
+        // Restore input and files on error
+        setInput(currentInput)
+        setStagedFiles(currentFiles)
       }
     } else {
       console.warn("[ChatInput] Attempted to send message while unauthenticated.")
     }
   }, [
-    input, isDisabled, sendMessage, convexConversationId, onConvexConversationIdChange,
+    input, stagedFiles, isDisabled, sendMessage, convexConversationId, onConvexConversationIdChange,
     isAuthenticated, convexCreateConversation, threadId, location.pathname, navigate,
-    selectedModel, getKey, hasUserKey, adjustHeight, isWebSearchEnabled
+    selectedModel, getKey, hasUserKey, adjustHeight, isWebSearchEnabled, uploadFiles,
+    generateUploadUrl, saveAttachment
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -101,14 +242,42 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   }
 
   return (
-    <div className="w-full">
-      <div className="bg-background/80 backdrop-blur-md border border-border/50 rounded-[20px] p-4 w-full shadow-lg">
+    <div 
+      className="w-full"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <div className={`bg-white/20 dark:bg-black/20 backdrop-blur-xl border border-white/30 dark:border-white/10 rounded-[20px] p-4 w-full transition-colors shadow-lg ${
+        isDragging ? 'border-blue-400/60 bg-blue-50/30 dark:bg-blue-900/30' : ''
+      }`}>
+        
+        {/* Staged files preview */}
+        {stagedFiles.length > 0 && (
+          <div className="mb-3 flex gap-2 flex-wrap">
+            {stagedFiles.map((file, index) => (
+              <FilePreview 
+                key={`${file.name}-${file.size}-${index}`} 
+                file={file} 
+                onRemove={() => removeStagedFile(index)} 
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Drag overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 bg-blue-100/50 dark:bg-blue-900/30 border-2 border-dashed border-blue-400 dark:border-blue-500 rounded-[20px] flex items-center justify-center z-10">
+            <div className="text-blue-600 dark:text-blue-400 font-medium">Drop files here to attach</div>
+          </div>
+        )}
+
         <div className="relative">
           <div className="flex flex-col">
             <Textarea
               id="chat-input"
               value={input}
-              placeholder="What can I do for you?"
+              placeholder={stagedFiles.length > 0 ? "Add a message (optional)..." : "Type your message here..."}
               className="w-full px-4 py-3 border-none shadow-none bg-transparent placeholder:text-muted-foreground resize-none focus-visible:ring-0 focus-visible:ring-offset-0 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30 scrollbar-thumb-rounded-full min-h-[72px]"
               ref={textareaRef}
               onKeyDown={handleKeyDown}
@@ -123,13 +292,31 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
                   <Button
                     onClick={toggleWebSearch}
                     variant={isWebSearchEnabled ? "default" : "ghost"}
-                    size="sm"
-                    className="h-8 px-2"
+                    size="icon"
+                    className="h-8 w-8"
                     aria-label="Toggle web search"
                   >
-                    <Globe className="h-4 w-4 mr-1" />
-                    Web
+                    <Globe className="h-4 w-4" />
                   </Button>
+                  <Button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    aria-label="Attach file"
+                    disabled={isStreaming}
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    multiple
+                    accept="image/*"
+                  />
                 </div>
                 <Button onClick={handleSubmit} variant="default" size="icon" disabled={isDisabled} aria-label="Send message">
                   <ArrowUpIcon size={18} />
