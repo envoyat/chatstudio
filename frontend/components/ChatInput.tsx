@@ -248,7 +248,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className={`bg-background/80 backdrop-blur-md border rounded-[20px] p-4 w-full shadow-lg transition-colors ${
+      <div className={`bg-background/80 backdrop-blur-md border rounded-[20px] p-4 w-full transition-colors ${
         isDragging ? 'border-blue-400 bg-blue-50' : 'border-border/50'
       }`}>
         

@@ -128,7 +128,7 @@ export default function ChatRunSettings({ className, conversationId, messages }:
         <div
           ref={settingsRef}
           className={cn(
-            "h-full bg-background/95 backdrop-blur-sm shadow-xl",
+            "h-full bg-background/95 backdrop-blur-sm",
             isMobile ? "border-l" : "border-l",
             !isSettingsOpen && !isMobile && "hidden"
           )}
