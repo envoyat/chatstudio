@@ -48,6 +48,7 @@ export default defineSchema({
     isBranched: v.optional(v.boolean()),
     branchedFrom: v.optional(v.id("conversations")),
     branchedFromTitle: v.optional(v.string()),
+    isPublic: v.optional(v.boolean()), // Whether this conversation is publicly shareable
   })
     .index("by_user", ["userId"])
     .index("by_user_and_last_message", ["userId", "lastMessageAt"])

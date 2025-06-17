@@ -3,22 +3,26 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { type MessageRole } from "@/convex/constants";
 import { v } from "convex/values";
 import type { MessagePart } from "@/convex/types";
-import type { useConversations } from "./convex-hooks";
 
-export interface Conversation {
+export type Conversation = {
   _id: Id<"conversations">;
-  id: string; // This is the UUID
+  id: string;
+  uuid: string;
   title: string;
   createdAt: Date;
   updatedAt: Date;
   lastMessageAt: Date;
-  isBranched?: boolean;
-  branchedFromTitle?: string;
   lastMessage?: {
-    role: MessageRole;
+    content: string;
+    createdAt: number;
+    role?: string;
     isComplete?: boolean;
   } | null;
-}
+  isPublic?: boolean;
+  isBranched?: boolean;
+  branchedFromTitle?: string;
+  ownerName?: string;
+};
 
 export interface DBMessage {
   _id: Id<"messages">;
@@ -39,7 +43,27 @@ export interface MessageSummary {
 }
 
 // This type represents one item from the array returned by `api.conversations.listWithLastMessage`
-type ConvexConversationWithDetails = NonNullable<ReturnType<typeof useConversations>>[number];
+type ConvexConversationWithDetails = {
+  _id: Id<"conversations">;
+  _creationTime: number;
+  uuid: string;
+  title: string;
+  userId: string;
+  createdAt: number;
+  updatedAt: number;
+  lastMessageAt: number;
+  isBranched?: boolean;
+  branchedFrom?: Id<"conversations">;
+  branchedFromTitle?: string;
+  isPublic?: boolean;
+  ownerName?: string;
+  lastMessage?: {
+    role: MessageRole;
+    content: string;
+    createdAt: number;
+    isComplete?: boolean;
+  } | null;
+};
 
 // Convert Convex conversation to app conversation format
 export function convertConvexConversation(
@@ -47,7 +71,8 @@ export function convertConvexConversation(
 ): Conversation {
   return {
     _id: convexConversation._id,
-    id: convexConversation.uuid, // Use UUID as the id for URL routing
+    id: convexConversation.uuid,
+    uuid: convexConversation.uuid,
     title: convexConversation.title,
     createdAt: new Date(convexConversation.createdAt),
     updatedAt: new Date(convexConversation.updatedAt),
@@ -55,6 +80,8 @@ export function convertConvexConversation(
     lastMessage: convexConversation.lastMessage,
     isBranched: convexConversation.isBranched,
     branchedFromTitle: convexConversation.branchedFromTitle,
+    isPublic: convexConversation.isPublic,
+    ownerName: convexConversation.ownerName,
   };
 }
 
