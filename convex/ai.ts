@@ -284,7 +284,7 @@ export const chat = internalAction({
         if (provider === 'google') {
           providerOptions.google = { thinkingConfig: { includeThoughts: true } };
         } else if (provider === 'anthropic') {
-          providerOptions.anthropic = { thinking: { type: 'enabled' as const } };
+          providerOptions.anthropic = { thinking: { type: 'enabled' as const, budgetTokens: 8000 } };
         }
         // Add other providers that support reasoning here in the future
       }
