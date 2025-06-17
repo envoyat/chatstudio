@@ -11,6 +11,7 @@ import MessageEditor from "./MessageEditor"
 import ToolCallDisplay from "./ToolCallDisplay"
 import { MESSAGE_ROLES } from "@/convex/constants"
 import type { ToolCall, ToolOutput, UIMessageData } from "@/convex/types"
+import MessageReasoning from "./MessageReasoning"
 
 function PureMessage({
   message,
@@ -74,6 +75,14 @@ function PureMessage({
         currentToolCalls = [];
       }
       
+      // Render reasoning parts
+      if ((part as any).type === 'reasoning' && 'text' in (part as any)) {
+        const reasoningPart = part as any;
+        renderedBlocks.push(
+          <MessageReasoning key={`reasoning-block-${renderedBlocks.length}`} reasoning={reasoningPart.text} id={`${message.id}-reasoning`} />
+        );
+      }
+
       // Render other part types
       if (part.type === 'text' && 'text' in part) {
         renderedBlocks.push(

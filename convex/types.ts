@@ -38,7 +38,8 @@ export type MessagePart =
   | { type: 'text'; text: string }
   | { type: 'tool-call'; id: string; name: string; args: Record<string, unknown> }
   | { type: 'tool-result'; toolCallId: string; result: unknown }
-  | { type: 'image'; image: string; mimeType?: string };
+  | { type: 'image'; image: string; mimeType?: string }
+  | { type: 'reasoning'; text: string };
 
 // UI Message data structure
 export interface UIMessageData {
@@ -84,6 +85,10 @@ export const messagePartSchema = z.discriminatedUnion('type', [
     image: z.string(),
     mimeType: z.string().optional(),
   }),
+  z.object({
+    type: z.literal('reasoning'),
+    text: z.string(),
+  }),
 ]);
 
 // Type guards
@@ -101,6 +106,10 @@ export function isTextPart(part: MessagePart): part is Extract<MessagePart, { ty
 
 export function isImagePart(part: MessagePart): part is Extract<MessagePart, { type: 'image' }> {
   return part.type === 'image';
+}
+
+export function isReasoningPart(part: MessagePart): part is Extract<MessagePart, { type: 'reasoning' }> {
+  return part.type === 'reasoning';
 }
 
 // Helper functions

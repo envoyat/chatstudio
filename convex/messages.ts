@@ -26,6 +26,10 @@ const messagePartValidator = v.union(
     type: v.literal('image'),
     image: v.string(), // Base64 data URL
     mimeType: v.optional(v.string()),
+  }),
+  v.object({
+    type: v.literal('reasoning'),
+    text: v.string(),
   })
 );
 

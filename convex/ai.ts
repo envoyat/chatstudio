@@ -12,7 +12,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createSystemPrompt } from "./prompts";
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
-import { MESSAGE_ROLES } from "./constants";
+import { MESSAGE_ROLES, type MessageRole } from "./constants";
 import { webSearchArgsSchema, type MessagePart, type ToolCall, type ToolOutput } from "./types";
 
 // Convex validator for message parts
@@ -36,6 +36,10 @@ const messagePartValidator = v.union(
     type: v.literal('image'),
     image: v.string(), // Base64 data URL or URL
     mimeType: v.optional(v.string()),
+  }),
+  v.object({
+    type: v.literal('reasoning'),
+    text: v.string(),
   })
 );
 
@@ -43,7 +47,7 @@ const messageValidator = v.object({
   _id: v.id("messages"),
   _creationTime: v.number(),
   conversationId: v.id("conversations"),
-  role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
+  role: v.union(v.literal("user" as MessageRole), v.literal("assistant" as MessageRole), v.literal("system" as MessageRole), v.literal("data" as MessageRole)),
   content: v.string(),
   parts: v.optional(v.array(messagePartValidator)),
   isComplete: v.optional(v.boolean()),
@@ -323,6 +327,18 @@ export const chat = internalAction({
               lastPart.text += part.textDelta;
             } else {
               parts.push({ type: 'text', text: part.textDelta });
+            }
+            await updateMessage();
+            break;
+          }
+          case 'reasoning': {
+            let reasoningPart = parts.find(p => p.type === 'reasoning') as Extract<MessagePart, { type: 'reasoning' }> | undefined;
+            
+            if (reasoningPart) {
+              reasoningPart.text += part.textDelta;
+            } else {
+              reasoningPart = { type: 'reasoning', text: part.textDelta };
+              parts.unshift(reasoningPart);
             }
             await updateMessage();
             break;

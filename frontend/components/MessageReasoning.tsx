@@ -1,44 +1,50 @@
 "use client"
 
-import { memo, useState } from "react"
-import MemoizedMarkdown from "./MemoizedMarkdown"
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import { useState } from "react"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
 
-function PureMessageReasoning({
-  reasoning,
-  id,
-}: {
+interface MessageReasoningProps {
   reasoning: string
   id: string
-}) {
+}
+
+export default function MessageReasoning({ reasoning, id }: MessageReasoningProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
+  if (!reasoning?.trim()) {
+    return null
+  }
+
   return (
-    <div className="flex flex-col gap-2 pb-2 max-w-3xl w-full">
+    <div className="my-2 border border-border/50 rounded-lg overflow-hidden">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 text-muted-foreground cursor-pointer"
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+        aria-expanded={isExpanded}
+        aria-controls={`reasoning-content-${id}`}
       >
         {isExpanded ? (
-          <span>
-            <ChevronUpIcon className="w-4 h-4" />
-          </span>
+          <ChevronDownIcon className="h-4 w-4" />
         ) : (
-          <span>
-            <ChevronDownIcon className="w-4 h-4" />
-          </span>
+          <ChevronRightIcon className="h-4 w-4" />
         )}
-        <span>Reasoning</span>
+        <span className="font-medium">💭 Reasoning</span>
+        <span className="text-xs opacity-60">
+          ({reasoning.length} characters)
+        </span>
       </button>
+      
       {isExpanded && (
-        <div className="p-4 rounded-md bg-secondary/10 text-xs border">
-          <MemoizedMarkdown content={reasoning} id={id} size="small" />
+        <div
+          id={`reasoning-content-${id}`}
+          className="px-3 py-2 bg-muted/20 border-t border-border/50"
+        >
+          <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+            {reasoning}
+          </div>
         </div>
       )}
     </div>
   )
 }
-
-export default memo(PureMessageReasoning, (prev, next) => {
-  return prev.reasoning === next.reasoning && prev.id === next.id
-})
