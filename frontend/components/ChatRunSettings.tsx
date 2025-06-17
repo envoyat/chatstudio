@@ -133,13 +133,13 @@ export default function ChatRunSettings({ className, conversationId, messages }:
         <div
           ref={settingsRef}
           className={cn(
-            "h-full bg-background/95 backdrop-blur-sm",
+            "h-full bg-background/95 backdrop-blur-sm flex flex-col",
             isMobile ? "border-l" : "border-l",
             !isSettingsOpen && !isMobile && "hidden"
           )}
         >
-          <div className="flex flex-col h-full p-4 space-y-4">
-            {/* Header with Close Button and Theme Toggle */}
+          {/* Fixed Header */}
+          <div className="flex-none p-4 pb-0">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Run Settings</h2>
               <div className="flex items-center gap-2">
@@ -154,13 +154,14 @@ export default function ChatRunSettings({ className, conversationId, messages }:
                 </Button>
               </div>
             </div>
+          </div>
 
-            <Separator />
-
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto p-4 pt-4 space-y-6">
             {/* Token Count Display */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">Token Usage</h3>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Current:</span>
                   <span className={`font-mono text-lg ${isAtLimit ? 'text-red-500' : isNearLimit ? 'text-orange-500' : 'text-foreground'}`}>
@@ -198,7 +199,7 @@ export default function ChatRunSettings({ className, conversationId, messages }:
             <Separator />
 
             {/* Web Search Toggle */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">Tools</h3>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -219,41 +220,42 @@ export default function ChatRunSettings({ className, conversationId, messages }:
               </p>
             </div>
 
-            <Separator />
-
             {/* Thinking Toggle */}
             {modelConfig.supportsReasoning && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-muted-foreground">Thinking</h3>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Brain className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Enable Reasoning</span>
+              <>
+                <Separator />
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-muted-foreground">Thinking</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Brain className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">Enable Reasoning</span>
+                    </div>
+                    <Switch
+                      checked={modelConfig.canToggleThinking ? isThinkingEnabled : true}
+                      onCheckedChange={modelConfig.canToggleThinking ? toggleThinking : undefined}
+                      disabled={!modelConfig.canToggleThinking}
+                      aria-label="Toggle model thinking"
+                    />
                   </div>
-                  <Switch
-                    checked={modelConfig.canToggleThinking ? isThinkingEnabled : true}
-                    onCheckedChange={modelConfig.canToggleThinking ? toggleThinking : undefined}
-                    disabled={!modelConfig.canToggleThinking}
-                    aria-label="Toggle model thinking"
-                  />
+                  <p className="text-xs text-muted-foreground">
+                    {modelConfig.canToggleThinking
+                      ? "Allow the model to show its reasoning steps before answering."
+                      : "This model's reasoning feature is always on."}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {modelConfig.canToggleThinking
-                    ? "Allow the model to show its reasoning steps before answering."
-                    : "This model's reasoning feature is always on."}
-                </p>
-              </div>
+              </>
             )}
 
             <Separator />
 
             {/* Attachments Section */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Paperclip className="h-4 w-4" />
                 Attachments
               </h3>
-              <div className="border rounded-lg bg-background max-h-96 overflow-y-auto">
+              <div className="border rounded-lg bg-background max-h-64 overflow-y-auto">
                 {/* New, more precise rendering logic */}
                 {isNewChat ? (
                   // If it's a brand new chat, immediately show the empty state.
@@ -289,7 +291,7 @@ export default function ChatRunSettings({ className, conversationId, messages }:
                     {temperature.toFixed(2)}
                   </span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <Slider
                     value={[temperature]}
                     onValueChange={handleTemperatureChange}
@@ -312,15 +314,21 @@ export default function ChatRunSettings({ className, conversationId, messages }:
               </div>
             </div>
 
-            {/* Model Info */}
             <Separator />
-            <div className="space-y-2">
+
+            {/* Model Info */}
+            <div className="space-y-3">
               <h3 className="text-sm font-medium text-muted-foreground">Current Model</h3>
-              <p className="text-sm font-medium">{selectedModel}</p>
-              <p className="text-xs text-muted-foreground">
-                Context window: {formatTokenCount(maxTokens)} tokens
-              </p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{selectedModel}</p>
+                <p className="text-xs text-muted-foreground">
+                  Context window: {formatTokenCount(maxTokens)} tokens
+                </p>
+              </div>
             </div>
+
+            {/* Bottom padding for scrolling */}
+            <div className="h-4" />
           </div>
         </div>
       </div>
