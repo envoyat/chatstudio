@@ -29,7 +29,7 @@ export default function MessageReasoning({ reasoning, id }: MessageReasoningProp
         ) : (
           <ChevronRightIcon className="h-4 w-4" />
         )}
-        <span className="font-medium">💭 Reasoning</span>
+        <span className="font-medium">Reasoning</span>
         <span className="text-xs opacity-60">
           ({reasoning.length} characters)
         </span>
