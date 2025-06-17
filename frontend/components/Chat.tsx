@@ -43,6 +43,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
     if (!isAuthenticated || !convexMessages) return []
     return convexMessages.map((msg) => {
       const data: Record<string, any> = {
+        reasoning: msg.reasoning, // Pass through the new reasoning field
         isComplete: msg.isComplete ?? true,
       };
       

@@ -78,8 +78,9 @@ function PureMessage({
       // Render reasoning parts
       if ((part as any).type === 'reasoning' && 'text' in (part as any)) {
         const reasoningPart = part as any;
+        const reasoningText = (message as any).reasoning ?? reasoningPart.text;
         renderedBlocks.push(
-          <MessageReasoning key={`reasoning-block-${renderedBlocks.length}`} reasoning={reasoningPart.text} id={`${message.id}-reasoning`} />
+          <MessageReasoning key={`reasoning-block-${renderedBlocks.length}`} reasoning={reasoningText} id={`${message.id}-reasoning`} isStreaming={isStreaming} />
         );
       }
 

@@ -300,11 +300,13 @@ export const chat = internalAction({
 
       let parts: MessagePart[] = [];
       
-      const updateMessage = async () => {
-        const content = parts
+      const updateMessage = async (newReasoning?: string) => {
+        const textContent = parts
           .filter((part): part is Extract<MessagePart, { type: 'text' }> => part.type === 'text')
           .map((part) => part.text)
           .join('');
+
+        const reasoningContent = newReasoning ?? (parts.find(p => p.type === 'reasoning') as Extract<MessagePart, { type: 'reasoning' }>)?.text;
 
         // Separate tool calls and results for structured storage
         const toolCalls: ToolCall[] = parts
@@ -312,7 +314,7 @@ export const chat = internalAction({
           .map(part => ({
             id: part.id,
             name: part.name,
-            args: part.args,
+            args: part.args, // JSON format
           }));
         
         const toolOutputs: ToolOutput[] = parts
@@ -324,8 +326,9 @@ export const chat = internalAction({
 
         await ctx.runMutation(internal.messages.update, {
           messageId: assistantMessageId,
-          content,
+          content: textContent,
           parts,
+          reasoning: reasoningContent,
           toolCalls,
           toolOutputs,
         });
@@ -344,15 +347,16 @@ export const chat = internalAction({
             break;
           }
           case 'reasoning': {
-            let reasoningPart = parts.find(p => p.type === 'reasoning') as Extract<MessagePart, { type: 'reasoning' }> | undefined;
-            
-            if (reasoningPart) {
-              reasoningPart.text += part.textDelta;
+            const existingReasoning = (parts.find(p => p.type === 'reasoning') as Extract<MessagePart, { type: 'reasoning' }>)?.text ?? "";
+            const newReasoning = existingReasoning + part.textDelta;
+            const reasoningPartIndex = parts.findIndex(p => p.type === 'reasoning');
+            if (reasoningPartIndex !== -1) {
+              parts[reasoningPartIndex] = { type: 'reasoning', text: newReasoning };
             } else {
-              reasoningPart = { type: 'reasoning', text: part.textDelta };
-              parts.unshift(reasoningPart);
+              parts.unshift({ type: 'reasoning', text: newReasoning });
             }
-            await updateMessage();
+            // Pass the latest reasoning text directly to avoid race conditions
+            await updateMessage(newReasoning);
             break;
           }
           case 'tool-call': {
@@ -387,9 +391,18 @@ export const chat = internalAction({
         .map((part) => part.text)
         .join('');
 
+      // Before finalizing, ensure the reasoning from the temporary field is in the parts array
+      const finalReasoningText = (parts.find(p => p.type === 'reasoning') as Extract<MessagePart, { type: 'reasoning' }>)?.text;
+      if (finalReasoningText && !parts.some(p => p.type === 'reasoning' && p.text === finalReasoningText)) {
+        const reasoningPartIndex = parts.findIndex(p => p.type === 'reasoning');
+        if (reasoningPartIndex !== -1) parts[reasoningPartIndex] = { type: 'reasoning', text: finalReasoningText };
+        else parts.unshift({ type: 'reasoning', text: finalReasoningText });
+      }
+
       await ctx.runMutation(internal.messages.finalise, {
         messageId: assistantMessageId,
         content: finalContent,
+        parts, // Pass final parts to be saved
       });
 
       // Update token counts for any attachments used in this message turn
@@ -445,6 +458,7 @@ export const chat = internalAction({
       await ctx.runMutation(internal.messages.finalise, {
         messageId: assistantMessageId,
         content: `Sorry, I ran into an error: ${errorMessage}`,
+        parts: [{ type: 'text', text: `Sorry, I ran into an error: ${errorMessage}` }],
       });
     }
 

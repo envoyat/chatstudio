@@ -184,6 +184,7 @@ export const list = query({
       role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
       parts: v.optional(v.array(messagePartValidator)),
       createdAt: v.number(),
+      reasoning: v.optional(v.string()),
       isComplete: v.optional(v.boolean()),
       toolCalls: v.optional(v.array(toolCallValidator)),
       toolOutputs: v.optional(v.array(toolOutputValidator)),
@@ -211,19 +212,22 @@ export const update = internalMutation({
   args: { 
     messageId: v.id("messages"), 
     parts: v.optional(v.array(messagePartValidator)),
+    reasoning: v.optional(v.string()),
     content: v.optional(v.string()),
     toolCalls: v.optional(v.array(toolCallValidator)),
     toolOutputs: v.optional(v.array(toolOutputValidator)),
   },
   returns: v.null(),
-  handler: async (ctx, { messageId, parts, content, toolCalls, toolOutputs }) => {
+  handler: async (ctx, { messageId, parts, reasoning, content, toolCalls, toolOutputs }) => {
     const updates: {
       parts?: MessagePart[];
+      reasoning?: string;
       content?: string;
       toolCalls?: ToolCall[];
       toolOutputs?: ToolOutput[];
     } = {};
     
+    if (reasoning !== undefined) updates.reasoning = reasoning;
     if (parts !== undefined) updates.parts = parts;
     if (content !== undefined) updates.content = content;
     if (toolCalls !== undefined) updates.toolCalls = toolCalls;
@@ -235,14 +239,19 @@ export const update = internalMutation({
 });
 
 export const finalise = internalMutation({
-  args: { messageId: v.id("messages"), content: v.string() },
+  args: { 
+    messageId: v.id("messages"), 
+    content: v.string(),
+    parts: v.array(messagePartValidator),
+  },
   returns: v.null(),
-  handler: async (ctx, { messageId, content }) => {
+  handler: async (ctx, { messageId, content, parts }) => {
     await ctx.db.patch(messageId, {
       content,
+      parts,
       isComplete: true,
-      // We no longer clear tool calls/outputs on finalise,
-      // as they are part of the final message state.
+      // Clear the temporary reasoning field
+      reasoning: undefined,
     });
     return null;
   },
