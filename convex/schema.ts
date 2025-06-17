@@ -45,6 +45,9 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     lastMessageAt: v.number(),
+    isBranched: v.optional(v.boolean()),
+    branchedFrom: v.optional(v.id("conversations")),
+    branchedFromTitle: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_user_and_last_message", ["userId", "lastMessageAt"])

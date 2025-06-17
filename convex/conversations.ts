@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { MESSAGE_ROLES } from "./constants";
+import { v4 as uuidv4 } from "uuid";
 
 export const create = mutation({
   args: {
@@ -54,6 +55,9 @@ export const getByUuid = query({
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
+      isBranched: v.optional(v.boolean()),
+      branchedFrom: v.optional(v.id("conversations")),
+      branchedFromTitle: v.optional(v.string()),
     }),
     v.null()
   ),
@@ -90,6 +94,9 @@ export const getById = query({
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
+      isBranched: v.optional(v.boolean()),
+      branchedFrom: v.optional(v.id("conversations")),
+      branchedFromTitle: v.optional(v.string()),
     }),
     v.null()
   ),
@@ -149,6 +156,11 @@ export const listWithLastMessage = query({
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
+      // Add new fields for branching
+      isBranched: v.optional(v.boolean()),
+      branchedFrom: v.optional(v.id("conversations")),
+      branchedFromTitle: v.optional(v.string()),
+      // Keep lastMessage as is
       lastMessage: v.union(
         v.object({
           role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
@@ -268,6 +280,72 @@ export const remove = mutation({
   },
 });
 
+export const branch = mutation({
+  args: {
+    originalConversationId: v.id("conversations"),
+    branchPointMessageId: v.id("messages"),
+  },
+  returns: v.object({ newConversationUuid: v.string() }),
+  handler: async (ctx, { originalConversationId, branchPointMessageId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Must be authenticated to branch conversations");
+    }
+
+    // 1. Verify ownership and get original conversation details
+    const originalConversation = await ctx.db.get(originalConversationId);
+    if (!originalConversation || originalConversation.userId !== identity.subject) {
+      throw new Error("Not authorised to branch this conversation");
+    }
+
+    const branchPointMessage = await ctx.db.get(branchPointMessageId);
+    if (!branchPointMessage || branchPointMessage.conversationId !== originalConversationId) {
+      throw new Error("Branch point message not found in the original conversation.");
+    }
+
+    // 2. Fetch all messages up to the branch point
+    const allMessages = await ctx.db
+      .query("messages")
+      .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", originalConversationId))
+      .order("asc")
+      .collect();
+
+    const messagesToCopy = [];
+    for (const message of allMessages) {
+      messagesToCopy.push(message);
+      if (message._id === branchPointMessageId) {
+        break;
+      }
+    }
+
+    // 3. Create the new branched conversation
+    const newConversationUuid = uuidv4();
+    const newConversationId = await ctx.db.insert("conversations", {
+      uuid: newConversationUuid,
+      title: `${originalConversation.title} (branched)`,
+      userId: identity.subject,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      lastMessageAt: Date.now(),
+      isBranched: true,
+      branchedFrom: originalConversationId,
+      branchedFromTitle: originalConversation.title,
+    });
+
+    // 4. Copy messages to the new conversation
+    for (const message of messagesToCopy) {
+      const { _id, _creationTime, conversationId, ...messageData } = message;
+      await ctx.db.insert("messages", {
+        ...messageData,
+        conversationId: newConversationId,
+      });
+    }
+
+    // 5. Return the new conversation's UUID for navigation
+    return { newConversationUuid };
+  },
+});
+
 export const updateTitle = internalMutation({
   args: {
     conversationId: v.id("conversations"),
@@ -298,6 +376,9 @@ export const get = query({
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
+      isBranched: v.optional(v.boolean()),
+      branchedFrom: v.optional(v.id("conversations")),
+      branchedFromTitle: v.optional(v.string()),
     }),
     v.null(),
   ),

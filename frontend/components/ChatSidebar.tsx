@@ -15,7 +15,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Link, useNavigate, useLocation } from "react-router-dom"
-import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn, Loader2 } from "lucide-react"
+import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn, Loader2, GitFork } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { memo } from "react"
 import { Authenticated, Unauthenticated, useConvexAuth } from "convex/react"
@@ -25,6 +25,12 @@ import { convertConvexConversation } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
 import { ROUTES } from "@/frontend/constants/routes"
 import { MESSAGE_ROLES } from "@/convex/constants"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 // A simple spinner component for the sidebar.
 const StreamingSpinner = () => (
   <Loader2 size={16} className="animate-spin text-primary" />
@@ -45,10 +51,7 @@ export default function ChatSidebar() {
   // Convert Convex conversations to app format - but keep the original data for streaming check
   const conversations = React.useMemo(() => {
     if (!isAuthenticated || !convexConversations) return []
-    return convexConversations.map(conversation => ({
-      ...convertConvexConversation(conversation),
-      lastMessage: conversation.lastMessage // Keep the lastMessage for streaming check
-    }))
+    return convexConversations.map(convertConvexConversation)
   }, [convexConversations, isAuthenticated])
 
   // Extract conversation ID from various possible paths
@@ -145,47 +148,58 @@ export default function ChatSidebar() {
           <Authenticated>
             <SidebarGroup className="px-0">
               <SidebarGroupContent>
-                <SidebarMenu className="space-y-1">
-                  {conversations?.map((conversation) => {
-                    // Logic for streaming state
-                    const isStreaming = conversation.lastMessage?.role === MESSAGE_ROLES.ASSISTANT && conversation.lastMessage.isComplete === false;
-                    
-                    return (
-                      <SidebarMenuItem key={conversation.id}>
-                        <div
-                          className={cn(
-                            "cursor-pointer group/thread h-10 flex items-center px-2 py-2 rounded-lg overflow-hidden w-full transition-colors hover:bg-primary/10",
-                            currentConversationId === conversation.id && "bg-primary/15",
-                          )}
-                          onClick={() => {
-                            if (currentConversationId === conversation.id) {
-                              return
-                            }
-                            navigate(ROUTES.CHAT_THREAD(conversation.id))
-                          }}
-                        >
-                          <span className="truncate text-sm font-medium flex-1">{conversation.title}</span>
-                          
-                          {/* Conditional spinner */}
-                          {isStreaming ? (
-                            <div className="flex items-center gap-2">
-                              <StreamingSpinner />
-                            </div>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="opacity-0 group-hover/thread:opacity-100 transition-opacity ml-2 h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                              onClick={(event) => handleDeleteConversation(conversation._id, event)}
-                            >
-                              <X size={14} />
-                            </Button>
-                          )}
-                        </div>
-                      </SidebarMenuItem>
-                    )
-                  })}
-                </SidebarMenu>
+                <TooltipProvider delayDuration={100}>
+                  <SidebarMenu className="space-y-1">
+                    {conversations?.map((conversation) => {
+                      // Logic for streaming state
+                      const isStreaming = conversation.lastMessage?.role === MESSAGE_ROLES.ASSISTANT && conversation.lastMessage.isComplete === false;
+                      
+                      return (
+                        <SidebarMenuItem key={conversation.id}>
+                          <div
+                            className={cn(
+                              "cursor-pointer group/thread h-10 flex items-center px-2 py-2 rounded-lg overflow-hidden w-full transition-colors hover:bg-primary/10",
+                              currentConversationId === conversation.id && "bg-primary/15",
+                            )}
+                            onClick={() => {
+                              if (currentConversationId === conversation.id) {
+                                return
+                              }
+                              navigate(ROUTES.CHAT_THREAD(conversation.id))
+                            }}
+                          >
+                            {conversation.isBranched && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <GitFork className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent side="right">
+                                  <p>Branched from '{conversation.branchedFromTitle}'</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            <span className="truncate text-sm font-medium flex-1">{conversation.title}</span>
+                            
+                            {isStreaming ? (
+                              <div className="flex items-center gap-2">
+                                <StreamingSpinner />
+                              </div>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="opacity-0 group-hover/thread:opacity-100 transition-opacity ml-2 h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                onClick={(event) => handleDeleteConversation(conversation._id, event)}
+                              >
+                                <X size={14} />
+                              </Button>
+                            )}
+                          </div>
+                        </SidebarMenuItem>
+                      )
+                    })}
+                  </SidebarMenu>
+                </TooltipProvider>
               </SidebarGroupContent>
             </SidebarGroup>
           </Authenticated>
