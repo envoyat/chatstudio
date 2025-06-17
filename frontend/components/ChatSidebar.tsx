@@ -272,7 +272,7 @@ const PureFooter = () => {
           variant="ghost"
           size="sm"
           className="w-full justify-start gap-3 h-10 p-3 hover:bg-accent/50"
-          onClick={() => navigate(ROUTES.ATTACHMENTS)}
+          onClick={() => navigate(ROUTES.SETTINGS + "?tab=attachments")}
         >
           <Paperclip size={16} className="text-muted-foreground" />
           <span className="text-sm font-medium">Attachments</span>
