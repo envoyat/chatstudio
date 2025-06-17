@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 import MarkdownRenderer from "@/frontend/components/MemoizedMarkdown"
 
@@ -14,19 +13,10 @@ interface MessageReasoningProps {
 
 export default function MessageReasoning({ reasoning, id, isReasoningStreaming }: MessageReasoningProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  const hasBeenStreaming = useRef(false);
 
   if (!reasoning?.trim()) {
     return null
   }
-
-  useEffect(() => {
-    // If reasoning starts streaming, and we haven't already forced it open, expand it.
-    if (isReasoningStreaming && !hasBeenStreaming.current) {
-      setIsExpanded(true);
-      hasBeenStreaming.current = true;
-    }
-  }, [isReasoningStreaming]);
 
   return (
     <div className="my-2 rounded-lg overflow-hidden">
