@@ -326,7 +326,7 @@ export const branch = mutation({
       userId: identity.subject,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      lastMessageAt: messagesToCopy[messagesToCopy.length - 1].createdAt,
+      lastMessageAt: Date.now(),
       isBranched: true,
       branchedFrom: originalConversationId,
       branchedFromTitle: originalConversation.title,
