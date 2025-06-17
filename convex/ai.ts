@@ -278,20 +278,15 @@ export const chat = internalAction({
         })
       };
 
-      // Prepare provider-specific options to enable reasoning
+      // Prepare provider-specific options if the model supports reasoning
       let providerOptions: any = {};
-      if (provider === 'google' && (aiModelName.startsWith("Gemini 2.5") || aiModelName.startsWith("Gemini 2.0"))) {
-        providerOptions = {
-          google: {
-            thinkingConfig: { includeThoughts: true },
-          },
-        };
-      } else if (provider === 'anthropic' && aiModelName.includes("Claude")) {
-        providerOptions = {
-          anthropic: {
-            thinking: { type: 'enabled' as const },
-          },
-        };
+      if (modelConfig.supportsReasoning) {
+        if (provider === 'google') {
+          providerOptions.google = { thinkingConfig: { includeThoughts: true } };
+        } else if (provider === 'anthropic') {
+          providerOptions.anthropic = { thinking: { type: 'enabled' as const } };
+        }
+        // Add other providers that support reasoning here in the future
       }
 
       const result = await streamText({
