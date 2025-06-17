@@ -157,7 +157,7 @@ export default function ChatRunSettings({ className, conversationId, messages }:
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto p-4 pt-4 space-y-6">
+          <div className="flex-1 overflow-y-auto p-4 pt-4 space-y-6 no-scrollbar">
             {/* Token Count Display */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-muted-foreground">Token Usage</h3>
