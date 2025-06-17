@@ -119,14 +119,6 @@ function PureMessage({
             </a>
           </div>
         );
-      } else if (part.type === 'reasoning' && 'reasoning' in part) {
-        const reasoningPart = part as any; // Type assertion for reasoning part
-        renderedBlocks.push(
-          <details key={`reasoning-block-${renderedBlocks.length}`} className="my-2">
-            <summary className="cursor-pointer text-sm text-muted-foreground">💭 Show reasoning</summary>
-            <div className="mt-1 pl-4 text-sm opacity-80">{reasoningPart.reasoning}</div>
-          </details>
-        );
       } else if (part.type === 'step-start') {
         renderedBlocks.push(
           <hr key={`step-${renderedBlocks.length}`} className="my-2 border-border/50" />

@@ -87,6 +87,13 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
           else if (part.type === 'image') {
             return part; // Keep image parts intact
           }
+          // Handle reasoning parts
+          else if (part.type === 'reasoning') {
+            return {
+              type: 'reasoning',
+              text: part.text,
+            };
+          }
           // Pass through other part types as-is
           return part;
         });

@@ -278,12 +278,29 @@ export const chat = internalAction({
         })
       };
 
+      // Prepare provider-specific options to enable reasoning
+      let providerOptions: any = {};
+      if (provider === 'google' && (aiModelName.startsWith("Gemini 2.5") || aiModelName.startsWith("Gemini 2.0"))) {
+        providerOptions = {
+          google: {
+            thinkingConfig: { includeThoughts: true },
+          },
+        };
+      } else if (provider === 'anthropic' && aiModelName.includes("Claude")) {
+        providerOptions = {
+          anthropic: {
+            thinking: { type: 'enabled' as const },
+          },
+        };
+      }
+
       const result = await streamText({
         model: providerInstance(modelConfig.modelId),
         messages: messagesForSdk,
         tools: isWebSearchEnabled ? tools : undefined,
         toolChoice: isWebSearchEnabled ? 'auto' : undefined,
         maxSteps: 5,
+        providerOptions, // Add this to enable reasoning
       });
 
       let parts: MessagePart[] = [];
