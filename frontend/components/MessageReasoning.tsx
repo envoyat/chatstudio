@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
+import MarkdownRenderer from "@/frontend/components/MemoizedMarkdown"
 
 interface MessageReasoningProps {
   reasoning: string
@@ -49,8 +50,8 @@ export default function MessageReasoning({ reasoning, id, isReasoningStreaming }
           id={`reasoning-content-${id}`}
           className="px-3 py-3 bg-muted/60 dark:bg-muted/80"
         >
-          <div className="text-sm text-foreground dark:text-foreground whitespace-pre-wrap">
-            {reasoning}
+          <div className="text-foreground dark:text-foreground">
+            <MarkdownRenderer content={reasoning} id={`${id}-reasoning-content`} size="small" />
           </div>
         </div>
       )}
