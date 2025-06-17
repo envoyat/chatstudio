@@ -3,6 +3,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { type MessageRole } from "@/convex/constants";
 import { v } from "convex/values";
 import type { MessagePart } from "@/convex/types";
+import type { useConversations } from "./convex-hooks";
 
 export interface Conversation {
   _id: Id<"conversations">;
@@ -11,6 +12,8 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   lastMessageAt: Date;
+  isBranched?: boolean;
+  branchedFromTitle?: string;
   lastMessage?: {
     role: MessageRole;
     isComplete?: boolean;
@@ -35,17 +38,13 @@ export interface MessageSummary {
   createdAt: Date;
 }
 
+// This type represents one item from the array returned by `api.conversations.listWithLastMessage`
+type ConvexConversationWithDetails = NonNullable<ReturnType<typeof useConversations>>[number];
+
 // Convert Convex conversation to app conversation format
-export function convertConvexConversation(convexConversation: {
-  _id: Id<"conversations">;
-  _creationTime: number;
-  uuid: string;
-  title: string;
-  userId: string;
-  createdAt: number;
-  updatedAt: number;
-  lastMessageAt: number;
-}): Conversation {
+export function convertConvexConversation(
+  convexConversation: ConvexConversationWithDetails
+): Conversation {
   return {
     _id: convexConversation._id,
     id: convexConversation.uuid, // Use UUID as the id for URL routing
@@ -53,6 +52,9 @@ export function convertConvexConversation(convexConversation: {
     createdAt: new Date(convexConversation.createdAt),
     updatedAt: new Date(convexConversation.updatedAt),
     lastMessageAt: new Date(convexConversation.lastMessageAt),
+    lastMessage: convexConversation.lastMessage,
+    isBranched: convexConversation.isBranched,
+    branchedFromTitle: convexConversation.branchedFromTitle,
   };
 }
 

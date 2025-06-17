@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Check, Copy, RefreshCcw, SquarePen } from "lucide-react"
+import { Check, Copy, RefreshCcw, SquarePen, GitFork } from "lucide-react"
 import type { UIMessage } from "ai"
 import { useConvexAuth, useMutation } from "convex/react"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -11,6 +12,7 @@ import { toast } from "sonner"
 import { api } from "@/convex/_generated/api"
 import { useModelStore } from "../stores/ModelStore"
 import { useAPIKeyStore } from "../stores/APIKeyStore"
+import { ROUTES } from "../constants/routes"
 import { MESSAGE_ROLES } from "@/convex/constants"
 
 interface MessageControlsProps {
@@ -28,8 +30,10 @@ export default function MessageControls({
 }: MessageControlsProps) {
   const [copied, setCopied] = useState(false)
   const { isAuthenticated } = useConvexAuth()
+  const navigate = useNavigate()
   const deleteTrailingMessages = useMutation(api.messages.deleteTrailing)
   const sendMessage = useMutation(api.messages.send)
+  const branchConversation = useMutation(api.conversations.branch)
   
   const { selectedModel } = useModelStore()
   const { hasUserKey, getKey } = useAPIKeyStore()
@@ -40,6 +44,26 @@ export default function MessageControls({
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
+
+  const handleBranch = async () => {
+    if (!isAuthenticated || !convexConversationId) {
+      toast.error("You must be logged in to branch a conversation.");
+      return;
+    }
+
+    toast.info("Creating a new branch...");
+    try {
+      const result = await branchConversation({
+        originalConversationId: convexConversationId,
+        branchPointMessageId: message.id as Id<"messages">,
+      });
+      toast.success("Conversation branched successfully!");
+      navigate(ROUTES.CHAT_THREAD(result.newConversationUuid));
+    } catch (error) {
+      console.error("Failed to branch conversation:", error);
+      toast.error("Failed to branch conversation.");
+    }
+  };
 
   const handleRegenerate = async () => {
     if (!isAuthenticated || !convexConversationId || !message.createdAt) return;
@@ -102,6 +126,7 @@ export default function MessageControls({
     <div
       className={cn("opacity-0 group-hover:opacity-100 transition-opacity duration-100 flex gap-1", {
         "absolute mt-5 right-2": message.role === MESSAGE_ROLES.USER,
+        "mt-2": message.role === MESSAGE_ROLES.ASSISTANT,
       })}
     >
       <Button variant="ghost" size="icon" onClick={handleCopy} title="Copy">
@@ -124,9 +149,14 @@ export default function MessageControls({
 
        {/* Regenerate an assistant message. Deletes it and reruns the previous prompt. */}
        {message.role === MESSAGE_ROLES.ASSISTANT && isAuthenticated && (
-        <Button variant="ghost" size="icon" onClick={handleRegenerate} title="Regenerate">
-          <RefreshCcw className="w-4 h-4" />
-        </Button>
+        <>
+          <Button variant="ghost" size="icon" onClick={handleRegenerate} title="Regenerate">
+            <RefreshCcw className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={handleBranch} title="Branch from here">
+            <GitFork className="w-4 h-4" />
+          </Button>
+        </>
       )}
     </div>
   )
