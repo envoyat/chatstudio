@@ -78,5 +78,9 @@ export default defineSchema({
     fileName: v.string(),
     contentType: v.string(),
     createdAt: v.number(),
-  }).index("by_userId", ["userId"]), // Index for quickly fetching a user's files
+    conversationId: v.optional(v.id("conversations")), // Link to the conversation
+    promptTokens: v.optional(v.number()), // Tokens for the message turn this was included in
+  })
+    .index("by_userId", ["userId"])
+    .index("by_conversation", ["conversationId"]), // Index for quickly fetching by conversation
 }); 

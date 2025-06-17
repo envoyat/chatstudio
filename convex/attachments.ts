@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
 // --- For Client-side Uploads (via Upload URL) ---
@@ -25,6 +25,7 @@ export const saveAttachment = mutation({
     storageId: v.id("_storage"),
     fileName: v.string(),
     contentType: v.string(),
+    conversationId: v.optional(v.id("conversations")), // Link to the conversation
   },
   returns: v.id("attachments"),
   handler: async (ctx, args) => {
@@ -40,9 +41,71 @@ export const saveAttachment = mutation({
       fileName: args.fileName,
       contentType: args.contentType,
       createdAt: Date.now(),
+      conversationId: args.conversationId,
     });
 
     return attachmentId;
+  },
+});
+
+// NEW: An internal mutation to update token counts for a batch of attachments
+export const updateTokenCountForAttachments = internalMutation({
+  args: {
+    attachmentIds: v.array(v.id("attachments")),
+    promptTokens: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { attachmentIds, promptTokens }) => {
+    for (const attachmentId of attachmentIds) {
+      await ctx.db.patch(attachmentId, { promptTokens });
+    }
+    return null;
+  },
+});
+
+// NEW: Query to get all attachments for a specific conversation
+export const getAttachmentsForConversation = query({
+  args: {
+    conversationId: v.id("conversations"),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("attachments"),
+      _creationTime: v.number(),
+      userId: v.string(),
+      storageId: v.id("_storage"),
+      fileName: v.string(),
+      contentType: v.string(),
+      createdAt: v.number(),
+      conversationId: v.optional(v.id("conversations")),
+      promptTokens: v.optional(v.number()),
+      url: v.union(v.string(), v.null()),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+
+    // Verify user has access to this conversation
+    const conversation = await ctx.db.get(args.conversationId);
+    if (!conversation || conversation.userId !== identity.subject) {
+      return [];
+    }
+
+    const attachments = await ctx.db
+      .query("attachments")
+      .withIndex("by_conversation", (q) => q.eq("conversationId", args.conversationId))
+      .order("desc")
+      .collect();
+
+    return Promise.all(
+      attachments.map(async (attachment) => ({
+        ...attachment,
+        url: await ctx.storage.getUrl(attachment.storageId),
+      }))
+    );
   },
 });
 
@@ -60,6 +123,8 @@ export const getAttachmentsForUser = query({
       fileName: v.string(),
       contentType: v.string(),
       createdAt: v.number(),
+      conversationId: v.optional(v.id("conversations")),
+      promptTokens: v.optional(v.number()),
       url: v.union(v.string(), v.null()),
     })
   ),
@@ -129,6 +194,8 @@ export const getAttachment = query({
       fileName: v.string(),
       contentType: v.string(),
       createdAt: v.number(),
+      conversationId: v.optional(v.id("conversations")),
+      promptTokens: v.optional(v.number()),
       url: v.union(v.string(), v.null()),
     }),
     v.null()

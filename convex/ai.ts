@@ -66,6 +66,7 @@ type ChatParams = {
   conversationId: Doc<"conversations">["_id"];
   userApiKey?: string;
   isWebSearchEnabled?: boolean;
+  newAttachmentIds?: Doc<"attachments">["_id"][];
 };
 
 // --- generateTitle Internal Action ---
@@ -150,9 +151,10 @@ export const chat = internalAction({
     conversationId: v.id("conversations"),
     userApiKey: v.optional(v.string()),
     isWebSearchEnabled: v.optional(v.boolean()),
+    newAttachmentIds: v.optional(v.array(v.id("attachments"))),
   },
   returns: v.null(),
-  handler: async (ctx, { messageHistory, assistantMessageId, model, conversationId, userApiKey, isWebSearchEnabled }: ChatParams) => {
+  handler: async (ctx, { messageHistory, assistantMessageId, model, conversationId, userApiKey, isWebSearchEnabled, newAttachmentIds }: ChatParams) => {
     try {
       const aiModelName = model as AIModel;
       const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName as keyof typeof MODEL_CONFIGS];
@@ -361,6 +363,22 @@ export const chat = internalAction({
         messageId: assistantMessageId,
         content: finalContent,
       });
+
+      // Update token counts for any attachments used in this message turn
+      if (newAttachmentIds && newAttachmentIds.length > 0) {
+        // For now, we'll use a placeholder token count since the AI SDK doesn't 
+        // always provide usage information in the streaming response.
+        // In a real implementation, you might want to:
+        // 1. Use a separate token counting library
+        // 2. Store token counts from the AI provider if available
+        // 3. Estimate based on message content length
+        const estimatedTokens = Math.max(100, finalContent.length / 4); // Rough estimate
+        
+        await ctx.runMutation(internal.attachments.updateTokenCountForAttachments, {
+          attachmentIds: newAttachmentIds,
+          promptTokens: Math.round(estimatedTokens),
+        });
+      }
 
       // Check if this is the first message exchange in the conversation
       // (only 2 messages: user's first message and assistant's response)

@@ -3,6 +3,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { MESSAGE_ROLES } from "./constants";
 import type { MessagePart, ToolCall, ToolOutput } from "./types";
+import type { Id } from "./_generated/dataModel";
 
 // Convex validator for message parts
 const messagePartValidator = v.union(
@@ -69,6 +70,7 @@ export const send = mutation({
 
     // Process attachments and create message parts
     const messageParts: MessagePart[] = [];
+    const newAttachmentIds: Id<"attachments">[] = []; // Keep track of attachments used in this message
     
     // Add text content as a part
     if (content.trim()) {
@@ -86,6 +88,16 @@ export const send = mutation({
         if (!attachment || attachment.userId !== identity.subject) {
           throw new Error(`Attachment not found or not owned by user: ${attachmentRef.fileName}`);
         }
+
+        // Link attachment to conversation if not already linked
+        if (!attachment.conversationId) {
+          await ctx.db.patch(attachmentRef.attachmentId, {
+            conversationId: conversationId,
+          });
+        }
+
+        // Track this attachment for token count updates
+        newAttachmentIds.push(attachmentRef.attachmentId);
 
         // Get the storage URL for the attachment
         const attachmentUrl = await ctx.storage.getUrl(attachment.storageId);
@@ -142,6 +154,7 @@ export const send = mutation({
       model,
       userApiKey,
       isWebSearchEnabled,
+      newAttachmentIds, // Pass attachment IDs for token tracking
     });
 
     // 5. Update conversation's lastMessageAt

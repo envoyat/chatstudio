@@ -152,7 +152,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
       </div>
       
       {/* Settings panel - shifts content on desktop, overlays on mobile */}
-      <ChatRunSettings />
+      <ChatRunSettings conversationId={convexConversationId} />
     </div>
   )
 }

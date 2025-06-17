@@ -5,19 +5,24 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
-import { Settings2, X, Globe } from "lucide-react"
+import { Settings2, X, Globe, Paperclip } from "lucide-react"
 import { useChatRunSettingsStore } from "@/frontend/stores/ChatRunSettingsStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { getModelTokenLimit } from "@/lib/token-limits"
 import { useUILayoutStore } from "@/frontend/stores/UILayoutStore"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import { AttachmentItem } from "./AttachmentItem"
+import type { Id } from "@/convex/_generated/dataModel"
 
 interface ChatRunSettingsProps {
   className?: string
+  conversationId: Id<"conversations"> | null
 }
 
-export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
+export default function ChatRunSettings({ className, conversationId }: ChatRunSettingsProps) {
   const { isSettingsOpen, setSettingsOpen } = useUILayoutStore()
   const settingsRef = React.useRef<HTMLDivElement>(null)
   const isMobile = useIsMobile()
@@ -32,6 +37,12 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
   } = useChatRunSettingsStore()
   
   const selectedModel = useModelStore((state) => state.selectedModel)
+  
+  // Fetch attachments for the current conversation
+  const attachments = useQuery(
+    api.attachments.getAttachmentsForConversation,
+    conversationId ? { conversationId } : "skip"
+  )
   
   // Update max tokens when model changes
   React.useEffect(() => {
@@ -195,6 +206,27 @@ export default function ChatRunSettings({ className }: ChatRunSettingsProps) {
               <p className="text-xs text-muted-foreground">
                 Enable web search to get up-to-date information about recent events, current affairs, and real-time data.
               </p>
+            </div>
+
+            <Separator />
+
+            {/* Attachments Section */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Paperclip className="h-4 w-4" />
+                Attachments
+              </h3>
+              <div className="border rounded-lg bg-background max-h-96 overflow-y-auto">
+                {attachments === undefined && (
+                  <div className="p-4 text-center text-muted-foreground text-sm">Loading...</div>
+                )}
+                {attachments && attachments.length === 0 && (
+                  <div className="p-4 text-center text-muted-foreground text-sm">No attachments in this conversation.</div>
+                )}
+                {attachments && attachments.map((attachment) => (
+                  <AttachmentItem key={attachment._id} attachment={attachment} />
+                ))}
+              </div>
             </div>
 
             <Separator />
