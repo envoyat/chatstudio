@@ -213,18 +213,11 @@ export const list = query({
 
     if (!conversation) return [];
 
-    let hasAccess = false;
-    // Allow access if:
-    // 1. User is authenticated and owns the conversation
-    // 2. User is a guest and owns the session
-    // 3. Conversation is public
-    if (identity && conversation.userId === identity.subject) {
-      hasAccess = true;
-    } else if (!identity && sessionId && conversation.sessionId === sessionId) {
-      hasAccess = true;
-    } else if (conversation.isPublic) {
-      hasAccess = true;
-    }
+    const isOwner = identity && conversation.userId === identity.subject;
+    const isGuestOwner = !identity && sessionId && conversation.sessionId === sessionId;
+    const isPublic = conversation.isPublic;
+
+    const hasAccess = isOwner || isGuestOwner || isPublic;
 
     if (hasAccess) {
       return await ctx.db

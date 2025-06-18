@@ -22,6 +22,7 @@ import GuestMessageLimit from "./GuestMessageLimit"
 import ReadOnlyPrompt from "./ReadOnlyPrompt"
 import { toast } from "sonner"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { ROUTES } from "@/frontend/constants/routes"
 
 interface ChatInputProps {
   threadId: string
@@ -219,7 +220,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
       currentConvexConversationId = newConversationId
       onConvexConversationIdChange(newConversationId)
       
-      const isNewThreadRoute = location.pathname === "/" || location.pathname === "/chat";
+      const isNewThreadRoute = location.pathname === ROUTES.HOME || location.pathname === ROUTES.CHAT
       if (isNewThreadRoute) {
         navigate(`/chat/${threadId}`)
       }
