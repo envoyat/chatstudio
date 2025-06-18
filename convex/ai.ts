@@ -297,6 +297,14 @@ export const chat = internalAction({
           providerOptions.google = { thinkingConfig: { includeThoughts: true } };
         } else if (provider === PROVIDERS.ANTHROPIC) {
           providerOptions.anthropic = { thinking: { type: 'enabled' as const, budgetTokens: 8000 } };
+        } else if (provider === PROVIDERS.OPENROUTER) {
+          // For OpenRouter, use their unified reasoning parameter
+          // This works for reasoning models like deepseek/deepseek-r1, anthropic/claude-sonnet-4, etc.
+          providerOptions.openrouter = {
+            reasoning: {
+              max_tokens: 8000, // Use max_tokens approach which works for Anthropic models via OpenRouter
+            },
+          };
         }
       }
 

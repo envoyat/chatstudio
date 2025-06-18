@@ -2,7 +2,7 @@ import { encode } from "gpt-tokenizer"
 import type { AIModel } from "@/lib/models"
 import type { UIMessage } from "ai"
 
-// Token limits for each model (placeholder values as requested)
+// Token limits for each model
 export const MODEL_TOKEN_LIMITS: Record<AIModel, number> = {
   "Gemini 2.5 Pro": 1048576,
   "Gemini 2.5 Flash": 1048576,

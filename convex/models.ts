@@ -94,9 +94,9 @@ export const MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
     canToggleThinking: false,
   },
   "DeepSeek R1": {
-    modelId: "deepseek/deepseek-r1-0528:free",
+    modelId: "deepseek/deepseek-r1",
     provider: PROVIDERS.OPENROUTER,
-    openRouterModelId: "deepseek/deepseek-r1-0528:free",
+    openRouterModelId: "deepseek/deepseek-r1",
     supportsReasoning: true,
     canToggleThinking: true,
   }

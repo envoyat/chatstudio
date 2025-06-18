@@ -92,7 +92,7 @@ export const MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
     openRouterModelId: "openai/gpt-4.1-nano",
   },
   "o3": {
-    modelId: "o3-2025-04-16",
+    modelId: "openai/o3",
     provider: "openrouter",
     headerKey: "X-OpenAI-API-Key",
     openRouterModelId: "openai/o3",
