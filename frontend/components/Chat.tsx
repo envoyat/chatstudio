@@ -28,6 +28,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   const { user } = useUser();
   const scrollContainerRef = useRef<HTMLElement>(null)
   const chatInputWrapperRef = useRef<HTMLDivElement>(null)
+  const lastScrollTopRef = useRef<number>(0)
 
   // State to determine if the user is just a viewer of a public chat
   const [isViewerMode, setIsViewerMode] = useState(false);
@@ -178,6 +179,14 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
       const { scrollTop, scrollHeight, clientHeight } = container;
       const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
       
+      // Check if user scrolled up - cancel auto-scroll immediately
+      if (scrollTop < lastScrollTopRef.current && autoScroll) {
+        setAutoScroll(false);
+      }
+      
+      // Update the last scroll position
+      lastScrollTopRef.current = scrollTop;
+      
       setShowScrollButton(!isAtBottom);
       
       if (isAtBottom) {
@@ -201,7 +210,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
       container.removeEventListener('wheel', handleUserInteraction);
       container.removeEventListener('touchstart', handleUserInteraction);
     };
-  }, [scrollContainerRef.current]);
+  }, [scrollContainerRef.current, autoScroll]);
 
   // Observer to track ChatInput height for button positioning
   useEffect(() => {
