@@ -11,6 +11,7 @@ import MessageEditor from "./MessageEditor"
 import ToolCallDisplay from "./ToolCallDisplay"
 import { MESSAGE_ROLES } from "@/convex/constants"
 import type { ToolCall, ToolOutput, UIMessageData } from "@/convex/types"
+import MessageReasoning from "./MessageReasoning"
 
 function PureMessage({
   message,
@@ -25,6 +26,11 @@ function PureMessage({
 
   const messageData = message.data as UIMessageData | undefined;
   const isStreaming = message.role === 'assistant' && messageData?.isComplete === false;
+
+  const hasReasoningData = (message.data as any)?.reasoning || message.parts?.some(p => p.type === 'reasoning');
+  const hasTextContent = message.parts?.some(p => p.type === 'text' && (p as any).text.trim() !== '');
+
+  const isReasoningStreaming = isStreaming && !!hasReasoningData && !hasTextContent;
 
   // Pre-process parts to group consecutive tool calls
   const renderedBlocks = [];
@@ -74,6 +80,15 @@ function PureMessage({
         currentToolCalls = [];
       }
       
+      // Render reasoning parts
+      if ((part as any).type === 'reasoning' && 'text' in (part as any)) {
+        const reasoningPart = part as any;
+        const reasoningText = (message as any).reasoning ?? reasoningPart.text;
+        renderedBlocks.push(
+          <MessageReasoning key={`reasoning-block-${renderedBlocks.length}`} reasoning={reasoningText} id={`${message.id}-reasoning`} isReasoningStreaming={isReasoningStreaming} />
+        );
+      }
+
       // Render other part types
       if (part.type === 'text' && 'text' in part) {
         renderedBlocks.push(
@@ -110,14 +125,6 @@ function PureMessage({
             </a>
           </div>
         );
-      } else if (part.type === 'reasoning' && 'reasoning' in part) {
-        const reasoningPart = part as any; // Type assertion for reasoning part
-        renderedBlocks.push(
-          <details key={`reasoning-block-${renderedBlocks.length}`} className="my-2">
-            <summary className="cursor-pointer text-sm text-muted-foreground">💭 Show reasoning</summary>
-            <div className="mt-1 pl-4 text-sm opacity-80">{reasoningPart.reasoning}</div>
-          </details>
-        );
       } else if (part.type === 'step-start') {
         renderedBlocks.push(
           <hr key={`step-${renderedBlocks.length}`} className="my-2 border-border/50" />
@@ -153,7 +160,7 @@ function PureMessage({
     setMode(newMode);
   }
 
-  const hasTextContent = messageParts.some(part => part.type === 'text' && 'text' in part);
+  const hasTextContentForControls = messageParts.some(part => part.type === 'text' && 'text' in part);
 
   return (
     <div role="article" className={cn("flex flex-col", message.role === MESSAGE_ROLES.USER ? "items-end" : "items-start")}>
@@ -176,7 +183,7 @@ function PureMessage({
           renderedBlocks.map((block, i) => <div key={i}>{block}</div>)
         )}
         
-        {mode === "view" && !isStreaming && hasTextContent && (
+        {mode === "view" && !isStreaming && hasTextContentForControls && (
           <MessageControls
             message={message}
             messages={messages}

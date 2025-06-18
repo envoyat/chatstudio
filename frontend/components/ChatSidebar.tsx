@@ -146,7 +146,7 @@ export default function ChatSidebar() {
         )}
       >
         <Header />
-        <SidebarContent className="flex-1 overflow-y-auto overflow-x-hidden">
+        <SidebarContent className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar">
           <Authenticated>
             <SidebarGroup className="px-0">
               <SidebarGroupContent>

@@ -12,7 +12,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createSystemPrompt } from "./prompts";
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
-import { MESSAGE_ROLES } from "./constants";
+import { MESSAGE_ROLES, type MessageRole, PROVIDERS } from "./constants";
 import { webSearchArgsSchema, type MessagePart, type ToolCall, type ToolOutput } from "./types";
 
 // Convex validator for message parts
@@ -36,6 +36,10 @@ const messagePartValidator = v.union(
     type: v.literal('image'),
     image: v.string(), // Base64 data URL or URL
     mimeType: v.optional(v.string()),
+  }),
+  v.object({
+    type: v.literal('reasoning'),
+    text: v.string(),
   })
 );
 
@@ -66,6 +70,7 @@ type ChatParams = {
   conversationId: Doc<"conversations">["_id"];
   userApiKey?: string;
   isWebSearchEnabled?: boolean;
+  isThinkingEnabled?: boolean;
   newAttachmentIds?: Doc<"attachments">["_id"][];
 };
 
@@ -84,7 +89,7 @@ export const generateTitle = internalAction({
     title: v.optional(v.string()),
   }),
   handler: async (ctx, { prompt, isTitle, conversationId, messageId, userGoogleApiKey }) => {
-    let googleApiKey = userGoogleApiKey || getApiKeyFromConvexEnv("google");
+    let googleApiKey = userGoogleApiKey || getApiKeyFromConvexEnv(PROVIDERS.GOOGLE);
     
     if (!googleApiKey) {
       const errorMessage = userGoogleApiKey 
@@ -151,31 +156,32 @@ export const chat = internalAction({
     conversationId: v.id("conversations"),
     userApiKey: v.optional(v.string()),
     isWebSearchEnabled: v.optional(v.boolean()),
+    isThinkingEnabled: v.optional(v.boolean()),
     newAttachmentIds: v.optional(v.array(v.id("attachments"))),
   },
   returns: v.null(),
-  handler: async (ctx, { messageHistory, assistantMessageId, model, conversationId, userApiKey, isWebSearchEnabled, newAttachmentIds }: ChatParams) => {
+  handler: async (ctx, { messageHistory, assistantMessageId, model, conversationId, userApiKey, isWebSearchEnabled, isThinkingEnabled, newAttachmentIds }: ChatParams) => {
     try {
       const aiModelName = model as AIModel;
       const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName as keyof typeof MODEL_CONFIGS];
       const provider = modelConfig.provider;
 
       let providerInstance;
-      if (provider === 'openai') {
+      if (provider === PROVIDERS.OPENAI) {
           providerInstance = createOpenAI({
               apiKey: userApiKey,
           });
-      } else if (provider === 'google') { 
+      } else if (provider === PROVIDERS.GOOGLE) { 
           // For Google models, fallback to host API key if user hasn't provided one
-          const googleApiKey = userApiKey || getApiKeyFromConvexEnv("google");
+          const googleApiKey = userApiKey || getApiKeyFromConvexEnv(PROVIDERS.GOOGLE);
           providerInstance = createGoogleGenerativeAI({
               apiKey: googleApiKey,
           });
-      } else if (provider === 'anthropic') {
+      } else if (provider === PROVIDERS.ANTHROPIC) {
           providerInstance = createAnthropic({
               apiKey: userApiKey,
           });
-      } else if (provider === 'openrouter') {
+      } else if (provider === PROVIDERS.OPENROUTER) {
           providerInstance = createOpenAI({
               apiKey: userApiKey,
               baseURL: "https://openrouter.ai/api/v1",
@@ -274,21 +280,37 @@ export const chat = internalAction({
         })
       };
 
+      // Prepare provider-specific options if the model supports reasoning
+      let providerOptions: any = {};
+      if (
+        modelConfig.supportsReasoning &&
+        (isThinkingEnabled || !modelConfig.canToggleThinking)
+      ) {
+        if (provider === PROVIDERS.GOOGLE) {
+          providerOptions.google = { thinkingConfig: { includeThoughts: true } };
+        } else if (provider === PROVIDERS.ANTHROPIC) {
+          providerOptions.anthropic = { thinking: { type: 'enabled' as const, budgetTokens: 8000 } };
+        }
+      }
+
       const result = await streamText({
         model: providerInstance(modelConfig.modelId),
         messages: messagesForSdk,
         tools: isWebSearchEnabled ? tools : undefined,
         toolChoice: isWebSearchEnabled ? 'auto' : undefined,
         maxSteps: 5,
+        providerOptions, // Add this to enable reasoning
       });
 
       let parts: MessagePart[] = [];
       
-      const updateMessage = async () => {
-        const content = parts
+      const updateMessage = async (newReasoning?: string) => {
+        const textContent = parts
           .filter((part): part is Extract<MessagePart, { type: 'text' }> => part.type === 'text')
           .map((part) => part.text)
           .join('');
+
+        const reasoningContent = newReasoning ?? (parts.find(p => p.type === 'reasoning') as Extract<MessagePart, { type: 'reasoning' }>)?.text;
 
         // Separate tool calls and results for structured storage
         const toolCalls: ToolCall[] = parts
@@ -296,7 +318,7 @@ export const chat = internalAction({
           .map(part => ({
             id: part.id,
             name: part.name,
-            args: part.args,
+            args: part.args, // JSON format
           }));
         
         const toolOutputs: ToolOutput[] = parts
@@ -308,8 +330,9 @@ export const chat = internalAction({
 
         await ctx.runMutation(internal.messages.update, {
           messageId: assistantMessageId,
-          content,
+          content: textContent,
           parts,
+          reasoning: reasoningContent,
           toolCalls,
           toolOutputs,
         });
@@ -325,6 +348,19 @@ export const chat = internalAction({
               parts.push({ type: 'text', text: part.textDelta });
             }
             await updateMessage();
+            break;
+          }
+          case 'reasoning': {
+            const existingReasoning = (parts.find(p => p.type === 'reasoning') as Extract<MessagePart, { type: 'reasoning' }>)?.text ?? "";
+            const newReasoning = existingReasoning + part.textDelta;
+            const reasoningPartIndex = parts.findIndex(p => p.type === 'reasoning');
+            if (reasoningPartIndex !== -1) {
+              parts[reasoningPartIndex] = { type: 'reasoning', text: newReasoning };
+            } else {
+              parts.unshift({ type: 'reasoning', text: newReasoning });
+            }
+            // Pass the latest reasoning text directly to avoid race conditions
+            await updateMessage(newReasoning);
             break;
           }
           case 'tool-call': {
@@ -344,7 +380,6 @@ export const chat = internalAction({
               result: part.result,
             });
             await updateMessage();
-            console.log(`[ai.chat] Tool result for ${part.toolName}:`, part.result);
             break;
           }
           case 'error': {
@@ -359,9 +394,18 @@ export const chat = internalAction({
         .map((part) => part.text)
         .join('');
 
+      // Before finalizing, ensure the reasoning from the temporary field is in the parts array
+      const finalReasoningText = (parts.find(p => p.type === 'reasoning') as Extract<MessagePart, { type: 'reasoning' }>)?.text;
+      if (finalReasoningText && !parts.some(p => p.type === 'reasoning' && p.text === finalReasoningText)) {
+        const reasoningPartIndex = parts.findIndex(p => p.type === 'reasoning');
+        if (reasoningPartIndex !== -1) parts[reasoningPartIndex] = { type: 'reasoning', text: finalReasoningText };
+        else parts.unshift({ type: 'reasoning', text: finalReasoningText });
+      }
+
       await ctx.runMutation(internal.messages.finalise, {
         messageId: assistantMessageId,
         content: finalContent,
+        parts, // Pass final parts to be saved
       });
 
       // Update token counts for any attachments used in this message turn
@@ -389,12 +433,12 @@ export const chat = internalAction({
           
           // Get Google API key for title generation (fallback to host key if user hasn't provided one)
           let googleApiKey = undefined;
-          if (provider === 'google' && userApiKey) {
+          if (provider === PROVIDERS.GOOGLE && userApiKey) {
             // If the current provider is Google and user provided a key, use it
             googleApiKey = userApiKey;
           } else {
             // Otherwise, try to get host Google API key from environment
-            googleApiKey = getApiKeyFromConvexEnv("google");
+            googleApiKey = getApiKeyFromConvexEnv(PROVIDERS.GOOGLE);
           }
           
           // Schedule title generation
@@ -417,6 +461,7 @@ export const chat = internalAction({
       await ctx.runMutation(internal.messages.finalise, {
         messageId: assistantMessageId,
         content: `Sorry, I ran into an error: ${errorMessage}`,
+        parts: [{ type: 'text', text: `Sorry, I ran into an error: ${errorMessage}` }],
       });
     }
 

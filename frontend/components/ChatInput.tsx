@@ -62,7 +62,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   
   const selectedModel = useModelStore((state) => state.selectedModel)
   const { getKey, hasUserKey } = useAPIKeyStore()
-  const { isWebSearchEnabled, toggleWebSearch } = useChatRunSettingsStore()
+  const { isWebSearchEnabled, isThinkingEnabled, toggleWebSearch } = useChatRunSettingsStore()
   
   const isDisabled = useMemo(() => (!input.trim() && stagedFiles.length === 0) || isStreaming, [input, stagedFiles.length, isStreaming])
   
@@ -208,6 +208,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
         model: selectedModel,
         userApiKey: userApiKeyForModel || undefined,
         isWebSearchEnabled: isWebSearchEnabled,
+        isThinkingEnabled: isThinkingEnabled,
         attachmentRefs: attachments,
       }
 
@@ -225,7 +226,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   }, [
     input, stagedFiles, isDisabled, sendMessage, convexConversationId, onConvexConversationIdChange,
     isAuthenticated, convexCreateConversation, threadId, location.pathname, navigate,
-    selectedModel, getKey, hasUserKey, adjustHeight, isWebSearchEnabled, uploadFiles,
+    selectedModel, getKey, hasUserKey, adjustHeight, isWebSearchEnabled, isThinkingEnabled, uploadFiles,
     generateUploadUrl, saveAttachment
   ])
 

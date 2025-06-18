@@ -43,6 +43,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
     if (!convexMessages) return []
     return convexMessages.map((msg) => {
       const data: Record<string, any> = {
+        reasoning: msg.reasoning, // Pass through the new reasoning field
         isComplete: msg.isComplete ?? true,
       };
       
@@ -86,6 +87,13 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
           // Handle image parts - pass through as-is for our custom rendering
           else if (part.type === 'image') {
             return part; // Keep image parts intact
+          }
+          // Handle reasoning parts
+          else if (part.type === 'reasoning') {
+            return {
+              type: 'reasoning',
+              text: part.text,
+            };
           }
           // Pass through other part types as-is
           return part;

@@ -23,6 +23,10 @@ const messagePartValidator = v.union(
     type: v.literal('image'),
     image: v.string(), // Base64 data URL
     mimeType: v.optional(v.string()),
+  }),
+  v.object({
+    type: v.literal('reasoning'),
+    text: v.string(),
   })
 );
 
@@ -60,6 +64,7 @@ export default defineSchema({
     role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
     parts: v.optional(v.array(messagePartValidator)),
     createdAt: v.number(),
+    reasoning: v.optional(v.string()), // ADDED: To store streaming reasoning text
     isComplete: v.optional(v.boolean()), // ADDED: To track streaming status
     toolCalls: v.optional(v.array(toolCallValidator)),
     toolOutputs: v.optional(v.array(toolOutputValidator)),

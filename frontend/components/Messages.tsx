@@ -15,6 +15,26 @@ function PureMessages({
   isStreaming: boolean;
   convexConversationId: Id<"conversations"> | null;
 }) {
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  
+  // Early return if no messages to avoid unnecessary computation
+  if (!lastMessage) {
+    return <section className="flex flex-col"></section>;
+  }
+  
+  // Determine if the assistant is generating a response
+  const assistantIsGenerating =
+    lastMessage.role === "assistant" &&
+    (lastMessage.data as UIMessageData)?.isComplete === false;
+
+  // Determine if we should show the "typing dots"
+  // Show only if the assistant is generating AND has not yet produced any content (text, tools, or reasoning)
+  const showLoadingDots =
+    assistantIsGenerating &&
+    !lastMessage.content &&
+    (!lastMessage.parts || lastMessage.parts.length === 0) &&
+    !(lastMessage as any).reasoning; // Also check our new temporary field
+
   return (
     <section className="flex flex-col">
       {messages.map((message, index) => {
@@ -35,12 +55,7 @@ function PureMessages({
           </div>
         );
       })}
-      {isStreaming && messages[messages.length - 1]?.content === "" && (() => {
-        const lastMessage = messages[messages.length - 1];
-        const messageData = lastMessage?.data as UIMessageData | undefined;
-        const hasToolCalls = messageData?.toolCalls && messageData.toolCalls.length > 0;
-        return !hasToolCalls;
-      })() && (
+      {showLoadingDots && (
         <div className="mt-2">
           <MessageLoading />
         </div>
