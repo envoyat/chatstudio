@@ -190,10 +190,6 @@ export default function ChatSidebar() {
                                   </Tooltip>
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {conversation.lastMessage?.content ||
-                                 (conversation.isPublic && conversation.ownerName ? `Shared by ${conversation.ownerName}` : "No messages")}
-                              </p>
                             </div>
 
                             {isStreaming ? (
