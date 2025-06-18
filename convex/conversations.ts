@@ -58,25 +58,33 @@ export const getByUuid = query({
       isBranched: v.optional(v.boolean()),
       branchedFrom: v.optional(v.id("conversations")),
       branchedFromTitle: v.optional(v.string()),
+      isPublic: v.optional(v.boolean()),
     }),
     v.null()
   ),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
-
     const conversation = await ctx.db
       .query("conversations")
       .withIndex("by_uuid", (q) => q.eq("uuid", args.uuid))
       .first();
     
-    if (!conversation || conversation.userId !== identity.subject) {
+    if (!conversation) {
       return null;
     }
 
-    return conversation;
+    // Allow access if:
+    // 1. User is authenticated and owns the conversation
+    // 2. Conversation is public
+    if (identity && conversation.userId === identity.subject) {
+      return conversation;
+    }
+    
+    if (conversation.isPublic) {
+      return conversation;
+    }
+
+    return null;
   },
 });
 
@@ -97,6 +105,7 @@ export const getById = query({
       isBranched: v.optional(v.boolean()),
       branchedFrom: v.optional(v.id("conversations")),
       branchedFromTitle: v.optional(v.string()),
+      isPublic: v.optional(v.boolean()),
     }),
     v.null()
   ),
@@ -128,6 +137,7 @@ export const list = query({
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
+      isPublic: v.optional(v.boolean()),
     }),
   ),
   handler: async (ctx) => {
@@ -160,10 +170,16 @@ export const listWithLastMessage = query({
       isBranched: v.optional(v.boolean()),
       branchedFrom: v.optional(v.id("conversations")),
       branchedFromTitle: v.optional(v.string()),
+      // Add isPublic field
+      isPublic: v.optional(v.boolean()),
+      // Add ownerName field
+      ownerName: v.optional(v.string()),
       // Keep lastMessage as is
       lastMessage: v.union(
         v.object({
           role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
+          content: v.string(),
+          createdAt: v.number(),
           isComplete: v.optional(v.boolean()),
         }),
         v.null()
@@ -189,12 +205,18 @@ export const listWithLastMessage = query({
           .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", conversation._id))
           .order("desc")
           .first(); 
-        
+        // Try to get the user's name from Clerk identity or users table
+        let ownerName: string | undefined = undefined;
+
+        if (conversation.userId === identity.subject && identity.name) {
+          ownerName = identity.name;
+        }
         return {
           ...conversation,
           lastMessage: lastMessage
-            ? { role: lastMessage.role, isComplete: lastMessage.isComplete }
+            ? { role: lastMessage.role, isComplete: lastMessage.isComplete, content: lastMessage.content, createdAt: lastMessage.createdAt }
             : null,
+          ownerName,
         };
       })
     );
@@ -398,5 +420,30 @@ export const get = query({
     }
 
     return conversation;
+  },
+});
+
+export const togglePublic = mutation({
+  args: {
+    conversationId: v.id("conversations"),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, { conversationId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Must be authenticated to toggle conversation visibility");
+    }
+
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation || conversation.userId !== identity.subject) {
+      throw new Error("Not authorised to modify this conversation");
+    }
+
+    const newIsPublic = !conversation.isPublic;
+    await ctx.db.patch(conversationId, {
+      isPublic: newIsPublic,
+    });
+
+    return newIsPublic;
   },
 }); 

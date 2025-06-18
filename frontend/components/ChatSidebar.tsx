@@ -15,12 +15,13 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Link, useNavigate, useLocation } from "react-router-dom"
-import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn, Loader2, GitFork } from "lucide-react"
+import { X, Plus, Settings, ChevronLeft, ChevronRight, MessageSquare, LogIn, Loader2, GitFork, Globe } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { memo } from "react"
-import { Authenticated, Unauthenticated, useConvexAuth } from "convex/react"
+import { Authenticated, Unauthenticated, useConvexAuth, useQuery } from "convex/react"
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs"
 import { useConversations, useDeleteConversation } from "@/lib/convex-hooks"
+import type { Conversation } from "@/lib/convex-storage"
 import { convertConvexConversation } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
 import { ROUTES } from "@/frontend/constants/routes"
@@ -31,6 +32,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { api } from "@/convex/_generated/api"
 // A simple spinner component for the sidebar.
 const StreamingSpinner = () => (
   <Loader2 size={16} className="animate-spin text-primary" />
@@ -49,7 +51,7 @@ export default function ChatSidebar() {
   const deleteConversationMutation = useDeleteConversation()
 
   // Convert Convex conversations to app format - but keep the original data for streaming check
-  const conversations = React.useMemo(() => {
+  const conversations: Conversation[] = React.useMemo(() => {
     if (!isAuthenticated || !convexConversations) return []
     return convexConversations.map(convertConvexConversation)
   }, [convexConversations, isAuthenticated])
@@ -151,37 +153,47 @@ export default function ChatSidebar() {
                 <TooltipProvider delayDuration={100}>
                   <SidebarMenu className="space-y-1">
                     {conversations?.map((conversation) => {
+                      console.log("Conversation ID:", conversation.id, "UUID:", conversation.uuid);
                       // Logic for streaming state
                       const isStreaming = conversation.lastMessage?.role === MESSAGE_ROLES.ASSISTANT && conversation.lastMessage.isComplete === false;
                       
                       return (
                         <SidebarMenuItem key={conversation.id}>
-                          <div
+                          <Link
+                            to={ROUTES.CHAT_THREAD(conversation.uuid)}
                             className={cn(
                               "cursor-pointer group/thread h-10 flex items-center px-2 py-2 rounded-lg overflow-hidden w-full transition-colors hover:bg-primary/10",
                               currentConversationId === conversation.id && "bg-primary/15",
                             )}
-                            onClick={() => {
-                              if (currentConversationId === conversation.id) {
-                                return
-                              }
-                              navigate(ROUTES.CHAT_THREAD(conversation.id))
-                            }}
                           >
-                            {conversation.isBranched && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <GitFork className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />
-                                </TooltipTrigger>
-                                <TooltipContent side="right">
-                                  <p>Branched from '{conversation.branchedFromTitle}'</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                            <span className="truncate text-sm font-medium flex-1">{conversation.title}</span>
-                            
-                            {isStreaming ? (
+                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
+                                <span className="truncate text-sm font-medium">{conversation.title}</span>
+                                {conversation.isBranched && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <GitFork className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right">
+                                      <p>Branched from '{conversation.branchedFromTitle}'</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {conversation.isPublic && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Globe className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right">
+                                      <p>Shared by {conversation.ownerName || "an anonymous user"}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            </div>
+
+                            {isStreaming ? (
+                              <div className="flex items-center gap-2 ml-2">
                                 <StreamingSpinner />
                               </div>
                             ) : (
@@ -194,7 +206,7 @@ export default function ChatSidebar() {
                                 <X size={14} />
                               </Button>
                             )}
-                          </div>
+                          </Link>
                         </SidebarMenuItem>
                       )
                     })}
