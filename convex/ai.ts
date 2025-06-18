@@ -5,9 +5,10 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { type CoreMessage, streamText, tool } from "ai";
 import { z } from 'zod';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createAnthropic } from '@ai-sdk/anthropic';
+import { createOpenAI, OpenAIProvider } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI, GoogleGenerativeAIProvider } from '@ai-sdk/google';
+import { AnthropicProvider, createAnthropic } from '@ai-sdk/anthropic';
+import { createOpenRouter, OpenRouterProvider } from "@openrouter/ai-sdk-provider";
 
 import { createSystemPrompt } from "./prompts";
 import { MODEL_CONFIGS, type AIModel, type ModelConfig, findModelConfigByModelId } from "./models";
@@ -174,20 +175,24 @@ export const chat = internalAction({
       // The provider to use is the one sent from the frontend, or the model's default provider.
       const provider = (providerName as ProviderType) || modelConfig.provider;
 
-      let providerInstance;
+      // Create the appropriate model instance based on provider
+      let modelInstance;
       if (provider === PROVIDERS.OPENAI) {
-        providerInstance = createOpenAI({ apiKey: userApiKey });
+        const openai = createOpenAI({ apiKey: userApiKey });
+        modelInstance = openai(model);
       } else if (provider === PROVIDERS.GOOGLE) {
         // Use user's key if provided, otherwise fall back to host key. This is the only place a host key is used.
         const googleApiKey = userApiKey || getApiKeyFromConvexEnv(PROVIDERS.GOOGLE);
-        providerInstance = createGoogleGenerativeAI({ apiKey: googleApiKey });
+        const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
+        modelInstance = google(model);
       } else if (provider === PROVIDERS.ANTHROPIC) {
-        providerInstance = createAnthropic({ apiKey: userApiKey });
+        const anthropic = createAnthropic({ apiKey: userApiKey });
+        modelInstance = anthropic(model);
       } else if (provider === PROVIDERS.OPENROUTER) {
-        providerInstance = createOpenAI({
+        const openrouter = createOpenRouter({
           apiKey: userApiKey,
-          baseURL: "https://openrouter.ai/api/v1",
         });
+        modelInstance = openrouter(model);
       } else {
         throw new Error(`Unsupported provider: ${provider}`);
       }
@@ -294,15 +299,14 @@ export const chat = internalAction({
         (isThinkingEnabled || !modelConfig.canToggleThinking)
       ) {
         // Check if we're using OpenRouter (either natively or as fallback)
-        // OpenRouter model IDs typically contain a slash (e.g., "anthropic/claude-sonnet-4", "deepseek/deepseek-r1")
-        const isUsingOpenRouter = provider === PROVIDERS.OPENROUTER || model.includes('/');
+        const isUsingOpenRouter = provider === PROVIDERS.OPENROUTER;
         
         if (isUsingOpenRouter) {
-          // For OpenRouter, use their unified reasoning parameter
-          // This works for reasoning models like deepseek/deepseek-r1, anthropic/claude-sonnet-4, etc.
+          // For OpenRouter, use their unified reasoning parameter.
+          // This must be passed via the 'openrouter' providerOptions key.
           providerOptions.openrouter = {
             reasoning: {
-              max_tokens: 8000, // Use max_tokens approach which works for Anthropic models via OpenRouter
+              max_tokens: 8000,
             },
           };
         } else if (provider === PROVIDERS.GOOGLE) {
@@ -313,7 +317,7 @@ export const chat = internalAction({
       }
 
       const result = await streamText({
-        model: providerInstance(model),
+        model: modelInstance,
         messages: messagesForSdk,
         tools: isWebSearchEnabled ? tools : undefined,
         toolChoice: isWebSearchEnabled ? 'auto' : undefined,
