@@ -25,22 +25,22 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   const scrollContainerRef = useRef<HTMLElement>(null)
 
   // Find the Convex thread ID from the URL's UUID.
-  const existingThread = useConversationByUuid(isAuthenticated ? initialThreadUuid : undefined)
+  const existingThread = useConversationByUuid(initialThreadUuid)
   
   useEffect(() => {
-    if (isAuthenticated && existingThread) {
+    if (existingThread) {
       setConvexConversationId(existingThread._id);
     } else {
       setConvexConversationId(null);
     }
-  }, [isAuthenticated, existingThread, initialThreadUuid]);
+  }, [existingThread, initialThreadUuid]);
 
   // Reactively fetch messages for the current thread from Convex.
-  const convexMessages = useMessagesByUuid(isAuthenticated ? initialThreadUuid : undefined)
+  const convexMessages = useMessagesByUuid(initialThreadUuid)
 
   // Memoize the conversion from Convex doc format to the UI's UIMessage format.
   const messages: UIMessage[] = useMemo(() => {
-    if (!isAuthenticated || !convexMessages) return []
+    if (!convexMessages) return []
     return convexMessages.map((msg) => {
       const data: Record<string, any> = {
         reasoning: msg.reasoning, // Pass through the new reasoning field
@@ -112,7 +112,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
         data,
       };
     })
-  }, [convexMessages, isAuthenticated])
+  }, [convexMessages])
 
   // Count tokens in messages and update store
   useTokenCounter(messages);
@@ -146,21 +146,25 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
               />
             </div>
             
-            {/* Sticky ChatInput at bottom */}
-            <div className="sticky bottom-0 pb-4">
-              <ChatInput
-                threadId={initialThreadUuid}
-                convexConversationId={convexConversationId}
-                onConvexConversationIdChange={setConvexConversationId}
-                isStreaming={isStreaming}
-              />
-            </div>
+            {/* Sticky ChatInput at bottom - only show if authenticated or public */}
+            {isAuthenticated && (
+              <div className="sticky bottom-0 pb-4">
+                <ChatInput
+                  threadId={initialThreadUuid}
+                  convexConversationId={convexConversationId}
+                  onConvexConversationIdChange={setConvexConversationId}
+                  isStreaming={isStreaming}
+                />
+              </div>
+            )}
           </div>
         </main>
       </div>
       
-      {/* Settings panel - shifts content on desktop, overlays on mobile */}
-      <ChatRunSettings conversationId={convexConversationId} messages={messages} />
+      {/* Settings panel - only show if authenticated */}
+      {isAuthenticated && (
+        <ChatRunSettings conversationId={convexConversationId} messages={messages} />
+      )}
     </div>
   )
 }

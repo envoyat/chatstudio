@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Check, Copy, RefreshCcw, SquarePen, GitFork } from "lucide-react"
+import { Check, Copy, RefreshCcw, SquarePen, GitFork, Share2, Globe } from "lucide-react"
 import type { UIMessage } from "ai"
-import { useConvexAuth, useMutation } from "convex/react"
+import { useConvexAuth, useMutation, useQuery } from "convex/react"
 import type { Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
 import { api } from "@/convex/_generated/api"
@@ -29,15 +29,29 @@ export default function MessageControls({
   convexConversationId,
 }: MessageControlsProps) {
   const [copied, setCopied] = useState(false)
+  const [isPublic, setIsPublic] = useState(false)
   const { isAuthenticated } = useConvexAuth()
   const navigate = useNavigate()
   const deleteTrailingMessages = useMutation(api.messages.deleteTrailing)
   const sendMessage = useMutation(api.messages.send)
   const branchConversation = useMutation(api.conversations.branch)
+  const togglePublic = useMutation(api.conversations.togglePublic)
   
   const { selectedModel } = useModelStore()
   const { hasUserKey, getKey } = useAPIKeyStore()
   const { getModelConfig } = useModelStore()
+
+  // Get conversation details to show share status
+  const conversation = useQuery(api.conversations.getById, 
+    convexConversationId ? { conversationId: convexConversationId } : "skip"
+  );
+
+  // Update isPublic state when conversation changes
+  useEffect(() => {
+    if (conversation) {
+      setIsPublic(conversation.isPublic ?? false);
+    }
+  }, [conversation]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content)
@@ -122,6 +136,26 @@ export default function MessageControls({
     }
   }
 
+  const handleShare = async () => {
+    if (!isAuthenticated || !convexConversationId) return;
+
+    try {
+      const newIsPublic = await togglePublic({ conversationId: convexConversationId });
+      setIsPublic(newIsPublic);
+      
+      if (newIsPublic) {
+        const shareUrl = `${window.location.origin}/chat/${message.id}`;
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success("Share link copied to clipboard!");
+      } else {
+        toast.success("Conversation is now private");
+      }
+    } catch (error) {
+      console.error("Failed to toggle sharing:", error);
+      toast.error("Failed to toggle sharing");
+    }
+  }
+
   return (
     <div
       className={cn("opacity-0 group-hover:opacity-100 transition-opacity duration-100 flex gap-1", {
@@ -157,6 +191,18 @@ export default function MessageControls({
             <GitFork className="w-4 h-4" />
           </Button>
         </>
+      )}
+
+      {/* Share button - only show for the last message */}
+      {isAuthenticated && message.id === messages[messages.length - 1].id && (
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={handleShare} 
+          title={isPublic ? "Make private" : "Share conversation"}
+        >
+          <Share2 className={cn("w-4 h-4", isPublic && "text-primary")} />
+        </Button>
       )}
     </div>
   )

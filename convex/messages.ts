@@ -194,19 +194,32 @@ export const list = query({
   ),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-        return [];
-    }
     const conversation = await ctx.db.get(args.conversationId);
-    if (!conversation || conversation.userId !== identity.subject) {
+    
+    if (!conversation) {
       return [];
     }
 
-    return await ctx.db
-      .query("messages")
-      .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", args.conversationId))
-      .order("asc")
-      .collect();
+    // Allow access if:
+    // 1. User is authenticated and owns the conversation
+    // 2. Conversation is public
+    if (identity && conversation.userId === identity.subject) {
+      return await ctx.db
+        .query("messages")
+        .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", args.conversationId))
+        .order("asc")
+        .collect();
+    }
+    
+    if (conversation.isPublic) {
+      return await ctx.db
+        .query("messages")
+        .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", args.conversationId))
+        .order("asc")
+        .collect();
+    }
+
+    return [];
   },
 });
 
