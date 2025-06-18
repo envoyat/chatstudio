@@ -21,8 +21,6 @@ import { memo } from "react"
 import { Authenticated, Unauthenticated, useConvexAuth, useQuery } from "convex/react"
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs"
 import { useConversations, useDeleteConversation } from "@/lib/convex-hooks"
-import type { Conversation } from "@/lib/convex-storage"
-import { convertConvexConversation } from "@/lib/convex-storage"
 import type { Id } from "@/convex/_generated/dataModel"
 import { ROUTES } from "@/frontend/constants/routes"
 import { MESSAGE_ROLES } from "@/convex/constants"
@@ -32,8 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { api } from "@/convex/_generated/api"
-// A simple spinner component for the sidebar.
+
 const StreamingSpinner = () => (
   <Loader2 size={16} className="animate-spin text-primary" />
 );
@@ -47,14 +44,8 @@ export default function ChatSidebar() {
   const isMobile = useIsMobile()
 
   // Use the updated hook which now includes last message info.
-  const convexConversations = useConversations()
+  const conversations = useConversations()
   const deleteConversationMutation = useDeleteConversation()
-
-  // Convert Convex conversations to app format - but keep the original data for streaming check
-  const conversations: Conversation[] = React.useMemo(() => {
-    if (!isAuthenticated || !convexConversations) return []
-    return convexConversations.map(convertConvexConversation)
-  }, [convexConversations, isAuthenticated])
 
   // Extract conversation ID from various possible paths
   const currentConversationId = location.pathname.includes("/chat/") ? location.pathname.split("/chat/")[1] : null
@@ -153,17 +144,16 @@ export default function ChatSidebar() {
                 <TooltipProvider delayDuration={100}>
                   <SidebarMenu className="space-y-1">
                     {conversations?.map((conversation) => {
-                      console.log("Conversation ID:", conversation.id, "UUID:", conversation.uuid);
                       // Logic for streaming state
                       const isStreaming = conversation.lastMessage?.role === MESSAGE_ROLES.ASSISTANT && conversation.lastMessage.isComplete === false;
                       
                       return (
-                        <SidebarMenuItem key={conversation.id}>
+                        <SidebarMenuItem key={conversation.uuid}>
                           <Link
                             to={ROUTES.CHAT_THREAD(conversation.uuid)}
                             className={cn(
                               "cursor-pointer group/thread h-10 flex items-center px-2 py-2 rounded-lg overflow-hidden w-full transition-colors hover:bg-primary/10",
-                              currentConversationId === conversation.id && "bg-primary/15",
+                              currentConversationId === conversation.uuid && "bg-primary/15",
                             )}
                           >
                             <div className="flex-1 min-w-0">
