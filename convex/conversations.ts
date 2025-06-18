@@ -131,11 +131,12 @@ export const getById = query({
       return conversation;
     }
 
-    if (!conversation) {
-      return null;
+    // Add this check for public conversations
+    if (conversation.isPublic) {
+      return conversation;
     }
 
-    return conversation;
+    return null;
   },
 });
 

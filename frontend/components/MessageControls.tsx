@@ -144,7 +144,11 @@ export default function MessageControls({
       setIsPublic(newIsPublic);
       
       if (newIsPublic) {
-        const shareUrl = `${window.location.origin}/chat/${message.id}`;
+        if (!conversation) {
+          toast.error("Could not generate share link: conversation not found.");
+          return;
+        }
+        const shareUrl = `${window.location.origin}/chat/${conversation.uuid}`;
         await navigator.clipboard.writeText(shareUrl);
         toast.success("Share link copied to clipboard!");
       } else {
