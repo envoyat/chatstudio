@@ -25,18 +25,27 @@ export const saveAttachment = mutation({
     storageId: v.id("_storage"),
     fileName: v.string(),
     contentType: v.string(),
-    conversationId: v.optional(v.id("conversations")), // Link to the conversation
+    conversationId: v.optional(v.id("conversations")),
+    sessionId: v.optional(v.string()),
   },
   returns: v.id("attachments"),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
+
+    let userId, sessionId;
+    if (identity) {
+      userId = identity.subject;
+    } else if (args.sessionId) {
+      sessionId = args.sessionId;
+    } else {
+      throw new Error(
+        "Authentication or session ID required to save attachment.",
+      );
     }
-    const userId = identity.subject;
 
     const attachmentId = await ctx.db.insert("attachments", {
       userId,
+      sessionId,
       storageId: args.storageId,
       fileName: args.fileName,
       contentType: args.contentType,
@@ -72,7 +81,8 @@ export const getAttachmentsForConversation = query({
     v.object({
       _id: v.id("attachments"),
       _creationTime: v.number(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       storageId: v.id("_storage"),
       fileName: v.string(),
       contentType: v.string(),
@@ -118,7 +128,8 @@ export const getAttachmentsForUser = query({
     v.object({
       _id: v.id("attachments"),
       _creationTime: v.number(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       storageId: v.id("_storage"),
       fileName: v.string(),
       contentType: v.string(),
@@ -189,7 +200,8 @@ export const getAttachment = query({
     v.object({
       _id: v.id("attachments"),
       _creationTime: v.number(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       storageId: v.id("_storage"),
       fileName: v.string(),
       contentType: v.string(),

@@ -147,16 +147,16 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
             </div>
             
             {/* Sticky ChatInput at bottom - only show if authenticated or public */}
-            {isAuthenticated && (
-              <div className="sticky bottom-0 pb-4">
-                <ChatInput
-                  threadId={initialThreadUuid}
-                  convexConversationId={convexConversationId}
-                  onConvexConversationIdChange={setConvexConversationId}
-                  isStreaming={isStreaming}
-                />
-              </div>
-            )}
+            <div className="sticky bottom-0 pb-4">
+              <ChatInput
+                threadId={initialThreadUuid}
+                convexConversationId={convexConversationId}
+                onConvexConversationIdChange={setConvexConversationId}
+                isStreaming={isStreaming}
+                isAuthenticated={isAuthenticated}
+                messages={messages}
+              />
+            </div>
           </div>
         </main>
       </div>

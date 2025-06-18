@@ -4,54 +4,59 @@ import { MESSAGE_ROLES } from "./constants";
 import { v4 as uuidv4 } from "uuid";
 
 export const create = mutation({
-  args: {
-    uuid: v.string(),
-  },
+  args: { uuid: v.string(), sessionId: v.optional(v.string()) },
   returns: v.id("conversations"),
-  handler: async (ctx, { uuid }) => {
+  handler: async (ctx, { uuid, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Must be authenticated to create conversations");
+    let existingConversation;
+    if (identity) {
+      existingConversation = await ctx.db
+        .query("conversations")
+        .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+        .filter((q) => q.eq(q.field("uuid"), uuid))
+        .first();
+      if (existingConversation) return existingConversation._id;
+
+      return await ctx.db.insert("conversations", {
+        uuid,
+        title: "New Conversation",
+        userId: identity.subject,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lastMessageAt: Date.now(),
+      });
+    } else if (sessionId) {
+      existingConversation = await ctx.db
+        .query("conversations")
+        .withIndex("by_sessionId", (q) => q.eq("sessionId", sessionId))
+        .filter((q) => q.eq(q.field("uuid"), uuid))
+        .first();
+      if (existingConversation) return existingConversation._id;
+
+      return await ctx.db.insert("conversations", {
+        uuid,
+        title: "New Conversation",
+        sessionId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lastMessageAt: Date.now(),
+      });
+    } else {
+      throw new Error("Authentication or session ID is required.");
     }
-
-    // Check if a conversation with this UUID already exists for this user
-    const existingConversation = await ctx.db
-      .query("conversations")
-      .withIndex("by_uuid", (q) => q.eq("uuid", uuid))
-      .first();
-
-    if (existingConversation) {
-      if (existingConversation.userId !== identity.subject) {
-        throw new Error("Not authorised to access this conversation");
-      }
-      return existingConversation._id;
-    }
-
-    // Create new conversation
-    const conversationId = await ctx.db.insert("conversations", {
-      uuid,
-      title: "New Conversation",
-      userId: identity.subject,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      lastMessageAt: Date.now(),
-    });
-
-    return conversationId;
   },
 });
 
 export const getByUuid = query({
-  args: {
-    uuid: v.string(),
-  },
+  args: { uuid: v.string(), sessionId: v.optional(v.string()) },
   returns: v.union(
     v.object({
       _id: v.id("conversations"),
       _creationTime: v.number(),
       uuid: v.string(),
       title: v.string(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
@@ -62,20 +67,21 @@ export const getByUuid = query({
     }),
     v.null()
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx, { uuid, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
     const conversation = await ctx.db
       .query("conversations")
-      .withIndex("by_uuid", (q) => q.eq("uuid", args.uuid))
+      .withIndex("by_uuid", (q) => q.eq("uuid", uuid))
       .first();
-    
+
     if (!conversation) {
       return null;
     }
 
     // Allow access if:
     // 1. User is authenticated and owns the conversation
-    // 2. Conversation is public
+    // 2. User is a guest and owns the session
+    // 3. Conversation is public
     if (identity && conversation.userId === identity.subject) {
       return conversation;
     }
@@ -84,21 +90,24 @@ export const getByUuid = query({
       return conversation;
     }
 
+    if (!identity && sessionId && conversation.sessionId === sessionId) {
+      return conversation;
+    }
+
     return null;
   },
 });
 
 export const getById = query({
-  args: {
-    conversationId: v.id("conversations"),
-  },
+  args: { conversationId: v.id("conversations"), sessionId: v.optional(v.string()) },
   returns: v.union(
     v.object({
       _id: v.id("conversations"),
       _creationTime: v.number(),
       uuid: v.string(),
       title: v.string(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
@@ -109,15 +118,20 @@ export const getById = query({
     }),
     v.null()
   ),
-  handler: async (ctx, { conversationId }) => {
+  handler: async (ctx, { conversationId, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
+    const conversation = await ctx.db.get(conversationId);
+
+    if (!conversation) return null;
+
+    if (identity && conversation.userId === identity.subject) {
+      return conversation;
+    }
+    if (!identity && sessionId && conversation.sessionId === sessionId) {
+      return conversation;
     }
 
-    const conversation = await ctx.db.get(conversationId);
-    
-    if (!conversation || conversation.userId !== identity.subject) {
+    if (!conversation) {
       return null;
     }
 
@@ -133,7 +147,8 @@ export const list = query({
       _creationTime: v.number(),
       uuid: v.string(),
       title: v.string(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
@@ -162,7 +177,8 @@ export const listWithLastMessage = query({
       _creationTime: v.number(),
       uuid: v.string(),
       title: v.string(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
@@ -394,7 +410,8 @@ export const get = query({
       _creationTime: v.number(),
       uuid: v.string(),
       title: v.string(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
@@ -445,5 +462,42 @@ export const togglePublic = mutation({
     });
 
     return newIsPublic;
+  },
+});
+
+export const clearGuestData = mutation({
+  args: { sessionId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { sessionId }) => {
+    const conversations = await ctx.db
+      .query("conversations")
+      .withIndex("by_sessionId", (q) => q.eq("sessionId", sessionId))
+      .collect();
+
+    for (const conversation of conversations) {
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_conversation", (q) => q.eq("conversationId", conversation._id))
+        .collect();
+
+      for (const message of messages) {
+        await ctx.db.delete(message._id);
+        // also delete summaries
+        const summaries = await ctx.db
+          .query("messageSummaries")
+          .withIndex("by_message", (q) => q.eq("messageId", message._id))
+          .collect();
+
+        for (const summary of summaries) {
+          await ctx.db.delete(summary._id);
+        }
+      }
+
+      // Note: We are not deleting attachments for guests in this flow
+      // to keep it simple, but you could add that logic here if needed.
+
+      await ctx.db.delete(conversation._id);
+    }
+    return null;
   },
 }); 
