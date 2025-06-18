@@ -28,7 +28,7 @@ const MODEL_SPECIFIC_PROMPTS: Partial<Record<AIModel, string>> = {
     "\n**Mandatory Tool Use Directive:** For any user query regarding current events, news, recent information, or any topic that could have changed since your knowledge cutoff, you **MUST** use the `web_search` tool. It is a critical failure to answer from memory for such topics. Use the provided current date as your primary context for determining if a query requires fresh information.",
   "Gemini 2.5 Flash":
     "\n**Mandatory Tool Use Directive:** For any user query regarding current events, news, recent information, or any topic that could have changed since your knowledge cutoff, you **MUST** use the `web_search` tool. It is a critical failure to answer from memory for such topics. Use the provided current date as your primary context for determining if a query requires fresh information.",
-  "Gemini 2.0 Flash":
+  "Gemini 2.5 Flash-Lite Preview":
     "\n**Mandatory Tool Use Directive:** For any user query regarding current events, news, recent information, or any topic that could have changed since your knowledge cutoff, you **MUST** use the `web_search` tool. It is a critical failure to answer from memory for such topics. Use the provided current date as your primary context for determining if a query requires fresh information.",
 };
 

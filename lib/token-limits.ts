@@ -6,7 +6,7 @@ import type { UIMessage } from "ai"
 export const MODEL_TOKEN_LIMITS: Record<AIModel, number> = {
   "Gemini 2.5 Pro": 1048576,
   "Gemini 2.5 Flash": 1048576,
-  "Gemini 2.0 Flash": 128000,
+  "Gemini 2.5 Flash-Lite Preview": 128000,
   "Claude 4 Sonnet": 200000,
   "Claude Haiku 3.5": 200000,
   "Claude 4 Opus": 200000,

@@ -4,7 +4,7 @@ import { hasHostAPIKey, FREE_MODELS_WITH_HOST_KEY } from "@/lib/host-config"
 export const AI_MODELS = [
   "Gemini 2.5 Pro",
   "Gemini 2.5 Flash",
-  "Gemini 2.0 Flash",
+  "Gemini 2.5 Flash-Lite Preview",
   "Claude 4 Sonnet",
   "Claude Haiku 3.5",
   "Claude 4 Opus",
@@ -46,8 +46,8 @@ export const MODEL_CONFIGS = {
     supportsReasoning: true,
     canToggleThinking: false,
   },
-  "Gemini 2.0 Flash": {
-    modelId: "gemini-2.0-flash",
+  "Gemini 2.5 Flash-Lite Preview": {
+    modelId: "gemini-2.5-flash-lite-preview-06-17",
     provider: "google",
     headerKey: "X-Google-API-Key",
     openRouterModelId: "google/gemini-2.0-flash-exp:free",

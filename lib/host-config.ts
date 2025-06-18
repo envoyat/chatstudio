@@ -24,5 +24,5 @@ export const hasHostAPIKey = (provider: string): boolean => {
 // Free models that can use host API keys
 export const FREE_MODELS_WITH_HOST_KEY = [
   "Gemini 2.5 Flash",
-  "Gemini 2.0 Flash"
+  "Gemini 2.5 Flash-Lite Preview"
 ] as const 

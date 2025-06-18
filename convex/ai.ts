@@ -103,7 +103,7 @@ export const generateTitle = internalAction({
     try {
       const google = createGoogleGenerativeAI({ apiKey: googleApiKey });
       const result = await streamText({
-        model: google("gemini-2.0-flash"),
+        model: google("gemini-2.5-flash-lite-preview-06-17"),
         messages: [
             {
                 role: MESSAGE_ROLES.SYSTEM,

@@ -121,7 +121,7 @@ Primary chat endpoint supporting streaming responses
 #### Google (Gemini)
 - Gemini 2.5 Pro
 - Gemini 2.5 Flash  
-- Gemini 2.0 Flash
+- Gemini 2.5 Flash-Lite Preview
 
 #### OpenAI (GPT)
 - GPT-4.1

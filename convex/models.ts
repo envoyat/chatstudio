@@ -5,7 +5,7 @@ import { type Provider, PROVIDERS } from "./constants";
 export const AI_MODELS = [
   "Gemini 2.5 Pro",
   "Gemini 2.5 Flash",
-  "Gemini 2.0 Flash",
+  "Gemini 2.5 Flash-Lite Preview",
   "Claude 4 Sonnet",
   "Claude Haiku 3.5",
   "Claude 4 Opus",
@@ -40,8 +40,8 @@ export const MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
     supportsReasoning: true,
     canToggleThinking: false,
   },
-  "Gemini 2.0 Flash": {
-    modelId: "gemini-2.0-flash",
+  "Gemini 2.5 Flash-Lite Preview": {
+    modelId: "gemini-2.5-flash-lite-preview-06-17",
     provider: PROVIDERS.GOOGLE,
   },
   "Claude 4 Sonnet": {
