@@ -6,22 +6,29 @@ import { v4 as uuidv4 } from "uuid";
 export const create = mutation({
   args: {
     uuid: v.string(),
+    // Add sessionId for guest users
+    sessionId: v.optional(v.string()),
   },
   returns: v.id("conversations"),
-  handler: async (ctx, { uuid }) => {
+  handler: async (ctx, { uuid, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Must be authenticated to create conversations");
+
+    if (!identity && !sessionId) {
+      throw new Error("Must provide either a user identity or a session ID");
     }
 
+    const existingQuery = identity
+      ? ctx.db.query("conversations").withIndex("by_user_and_uuid", q => q.eq("userId", identity.subject).eq("uuid", uuid))
+      : ctx.db.query("conversations").withIndex("by_session_and_uuid", q => q.eq("sessionId", sessionId!).eq("uuid", uuid));
+    
     // Check if a conversation with this UUID already exists for this user
-    const existingConversation = await ctx.db
-      .query("conversations")
-      .withIndex("by_uuid", (q) => q.eq("uuid", uuid))
-      .first();
+    const existingConversation = await existingQuery.first();
 
     if (existingConversation) {
-      if (existingConversation.userId !== identity.subject) {
+      if (identity && existingConversation.userId !== identity.subject) {
+        throw new Error("Not authorised to access this conversation");
+      }
+      if (!identity && existingConversation.sessionId !== sessionId) {
         throw new Error("Not authorised to access this conversation");
       }
       return existingConversation._id;
@@ -31,7 +38,8 @@ export const create = mutation({
     const conversationId = await ctx.db.insert("conversations", {
       uuid,
       title: "New Conversation",
-      userId: identity.subject,
+      userId: identity?.subject,
+      sessionId: sessionId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       lastMessageAt: Date.now(),
@@ -44,6 +52,8 @@ export const create = mutation({
 export const getByUuid = query({
   args: {
     uuid: v.string(),
+    // Add sessionId for guest users
+    sessionId: v.optional(v.string()),
   },
   returns: v.union(
     v.object({
@@ -51,7 +61,8 @@ export const getByUuid = query({
       _creationTime: v.number(),
       uuid: v.string(),
       title: v.string(),
-      userId: v.string(),
+      userId: v.optional(v.string()), // Clerk user ID
+      sessionId: v.optional(v.string()), // Guest session ID
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
@@ -61,20 +72,25 @@ export const getByUuid = query({
     }),
     v.null()
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx, { uuid, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+
+    if (!identity && !sessionId) {
       return null;
     }
 
     const conversation = await ctx.db
       .query("conversations")
-      .withIndex("by_uuid", (q) => q.eq("uuid", args.uuid))
+      .withIndex("by_uuid", (q) => q.eq("uuid", uuid))
       .first();
     
-    if (!conversation || conversation.userId !== identity.subject) {
+    if (!conversation) {
       return null;
     }
+
+    // Ownership check
+    if (identity && conversation.userId !== identity.subject) return null;
+    if (!identity && conversation.sessionId !== sessionId) return null;
 
     return conversation;
   },
@@ -90,7 +106,8 @@ export const getById = query({
       _creationTime: v.number(),
       uuid: v.string(),
       title: v.string(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
@@ -102,12 +119,11 @@ export const getById = query({
   ),
   handler: async (ctx, { conversationId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return null;
-    }
-
-    const conversation = await ctx.db.get(conversationId);
+    // This query is intended to be used by authenticated users primarily
+    // for server-side checks, so we can be stricter here.
+    if (!identity) return null;
     
+    const conversation = await ctx.db.get(conversationId);
     if (!conversation || conversation.userId !== identity.subject) {
       return null;
     }
@@ -117,42 +133,57 @@ export const getById = query({
 });
 
 export const list = query({
-  args: {},
+  args: {
+    // Add sessionId for guest users
+    sessionId: v.optional(v.string()),
+  },
   returns: v.array(
     v.object({
       _id: v.id("conversations"),
       _creationTime: v.number(),
       uuid: v.string(),
       title: v.string(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
     }),
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, { sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      return [];
+
+    if (identity) {
+      return await ctx.db
+        .query("conversations")
+        .withIndex("by_user_and_last_message", (q) => q.eq("userId", identity.subject))
+        .order("desc")
+        .collect();
+    } else if (sessionId) {
+      return await ctx.db
+        .query("conversations")
+        .withIndex("by_session_and_last_message", (q) => q.eq("sessionId", sessionId))
+        .order("desc")
+        .collect();
     }
 
-    return await ctx.db
-      .query("conversations")
-      .withIndex("by_user_and_last_message", (q) => q.eq("userId", identity.subject))
-      .order("desc")
-      .collect();
+    return [];
   },
 });
 
 export const listWithLastMessage = query({
-  args: {},
+  args: {
+    // Add sessionId for guest users
+    sessionId: v.optional(v.string()),
+  },
   returns: v.array(
     v.object({
       _id: v.id("conversations"),
       _creationTime: v.number(),
       uuid: v.string(),
       title: v.string(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),
@@ -170,17 +201,25 @@ export const listWithLastMessage = query({
       ),
     })
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, { sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+
+    let conversations;
+    if (identity) {
+      conversations = await ctx.db
+        .query("conversations")
+        .withIndex("by_user_and_last_message", (q) => q.eq("userId", identity.subject))
+        .order("desc")
+        .collect();
+    } else if (sessionId) {
+      conversations = await ctx.db
+        .query("conversations")
+        .withIndex("by_session_and_last_message", (q) => q.eq("sessionId", sessionId))
+        .order("desc")
+        .collect();
+    } else {
       return [];
     }
-
-    const conversations = await ctx.db
-      .query("conversations")
-      .withIndex("by_user_and_last_message", (q) => q.eq("userId", identity.subject))
-      .order("desc")
-      .collect();
 
     const conversationsWithLastMessage = await Promise.all(
       conversations.map(async (conversation) => {
@@ -372,7 +411,8 @@ export const get = query({
       _creationTime: v.number(),
       uuid: v.string(),
       title: v.string(),
-      userId: v.string(),
+      userId: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
       createdAt: v.number(),
       updatedAt: v.number(),
       lastMessageAt: v.number(),

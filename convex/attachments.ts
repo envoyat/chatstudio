@@ -7,12 +7,16 @@ import type { Id } from "./_generated/dataModel";
 // 1. Generate a temporary URL for the client to upload a file to.
 // This is a secure way to let clients upload files without them hitting your server function.
 export const generateUploadUrl = mutation({
-  args: {},
+  args: {
+    // Add sessionId for guest users
+    sessionId: v.optional(v.string()),
+  },
   returns: v.string(),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("You must be logged in to upload a file.");
+    // Allow both authenticated users and guests with sessionId
+    if (!identity && !args.sessionId) {
+      throw new Error("You must be logged in or provide a session ID to upload a file.");
     }
     return await ctx.storage.generateUploadUrl();
   },
@@ -26,17 +30,21 @@ export const saveAttachment = mutation({
     fileName: v.string(),
     contentType: v.string(),
     conversationId: v.optional(v.id("conversations")), // Link to the conversation
+    sessionId: v.optional(v.string()), // Add sessionId for guest users
   },
   returns: v.id("attachments"),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
+    const userId = identity?.subject;
+
+    // Must have either authenticated user or sessionId
+    if (!userId && !args.sessionId) {
+      throw new Error("Not authenticated and no session ID provided");
     }
-    const userId = identity.subject;
 
     const attachmentId = await ctx.db.insert("attachments", {
       userId,
+      sessionId: args.sessionId,
       storageId: args.storageId,
       fileName: args.fileName,
       contentType: args.contentType,
@@ -67,12 +75,14 @@ export const updateTokenCountForAttachments = internalMutation({
 export const getAttachmentsForConversation = query({
   args: {
     conversationId: v.id("conversations"),
+    sessionId: v.optional(v.string()), // Add sessionId for guest users
   },
   returns: v.array(
     v.object({
       _id: v.id("attachments"),
       _creationTime: v.number(),
-      userId: v.string(),
+      userId: v.optional(v.string()), // Make userId optional
+      sessionId: v.optional(v.string()), // Add sessionId
       storageId: v.id("_storage"),
       fileName: v.string(),
       contentType: v.string(),
@@ -84,13 +94,24 @@ export const getAttachmentsForConversation = query({
   ),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+    const userId = identity?.subject;
+
+    // Must have either authenticated user or sessionId
+    if (!userId && !args.sessionId) {
       return [];
     }
 
     // Verify user has access to this conversation
     const conversation = await ctx.db.get(args.conversationId);
-    if (!conversation || conversation.userId !== identity.subject) {
+    if (!conversation) {
+      return [];
+    }
+
+    // Check ownership: either by userId or sessionId
+    const hasAccess = (userId && conversation.userId === userId) || 
+                     (args.sessionId && conversation.sessionId === args.sessionId);
+    
+    if (!hasAccess) {
       return [];
     }
 
@@ -113,12 +134,15 @@ export const getAttachmentsForConversation = query({
 
 // Get all attachments for the currently logged-in user.
 export const getAttachmentsForUser = query({
-  args: {},
+  args: {
+    sessionId: v.optional(v.string()), // Add sessionId for guest users
+  },
   returns: v.array(
     v.object({
       _id: v.id("attachments"),
       _creationTime: v.number(),
-      userId: v.string(),
+      userId: v.optional(v.string()), // Make userId optional
+      sessionId: v.optional(v.string()), // Add sessionId
       storageId: v.id("_storage"),
       fileName: v.string(),
       contentType: v.string(),
@@ -128,16 +152,31 @@ export const getAttachmentsForUser = query({
       url: v.union(v.string(), v.null()),
     })
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+    const userId = identity?.subject;
+
+    // Must have either authenticated user or sessionId
+    if (!userId && !args.sessionId) {
       return [];
     }
 
-    const attachments = await ctx.db
-      .query("attachments")
-      .withIndex("by_userId", (q) => q.eq("userId", identity.subject))
-      .collect();
+    let attachments;
+    if (userId) {
+      // Query by userId for authenticated users
+      attachments = await ctx.db
+        .query("attachments")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .collect();
+    } else if (args.sessionId) {
+      // Query by sessionId for guest users
+      attachments = await ctx.db
+        .query("attachments")
+        .withIndex("by_sessionId", (q) => q.eq("sessionId", args.sessionId))
+        .collect();
+    } else {
+      return [];
+    }
 
     // Include the URL for each attachment
     return Promise.all(
@@ -153,12 +192,16 @@ export const getAttachmentsForUser = query({
 export const deleteAttachment = mutation({
   args: {
     attachmentId: v.id("attachments"),
+    sessionId: v.optional(v.string()), // Add sessionId for guest users
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
+    const userId = identity?.subject;
+
+    // Must have either authenticated user or sessionId
+    if (!userId && !args.sessionId) {
+      throw new Error("Not authenticated and no session ID provided");
     }
 
     const attachment = await ctx.db.get(args.attachmentId);
@@ -166,8 +209,11 @@ export const deleteAttachment = mutation({
       throw new Error("Attachment not found");
     }
 
-    // Check ownership
-    if (attachment.userId !== identity.subject) {
+    // Check ownership: either by userId or sessionId
+    const hasAccess = (userId && attachment.userId === userId) || 
+                     (args.sessionId && attachment.sessionId === args.sessionId);
+
+    if (!hasAccess) {
       throw new Error("Not authorised to delete this attachment");
     }
 
@@ -184,12 +230,14 @@ export const deleteAttachment = mutation({
 export const getAttachment = query({
   args: {
     attachmentId: v.id("attachments"),
+    sessionId: v.optional(v.string()), // Add sessionId for guest users
   },
   returns: v.union(
     v.object({
       _id: v.id("attachments"),
       _creationTime: v.number(),
-      userId: v.string(),
+      userId: v.optional(v.string()), // Make userId optional
+      sessionId: v.optional(v.string()), // Add sessionId
       storageId: v.id("_storage"),
       fileName: v.string(),
       contentType: v.string(),
@@ -202,12 +250,23 @@ export const getAttachment = query({
   ),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
+    const userId = identity?.subject;
+
+    // Must have either authenticated user or sessionId
+    if (!userId && !args.sessionId) {
       return null;
     }
 
     const attachment = await ctx.db.get(args.attachmentId);
-    if (!attachment || attachment.userId !== identity.subject) {
+    if (!attachment) {
+      return null;
+    }
+
+    // Check ownership: either by userId or sessionId
+    const hasAccess = (userId && attachment.userId === userId) || 
+                     (args.sessionId && attachment.sessionId === args.sessionId);
+
+    if (!hasAccess) {
       return null;
     }
 

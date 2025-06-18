@@ -23,6 +23,7 @@ interface ChatInputProps {
   isStreaming: boolean
   convexConversationId: Id<"conversations"> | null
   onConvexConversationIdChange: React.Dispatch<React.SetStateAction<Id<"conversations"> | null>>
+  sessionId: string | null
 }
 
 // A component to render a preview of the staged file
@@ -51,7 +52,7 @@ const FilePreview = ({ file, onRemove }: { file: File; onRemove: () => void }) =
   )
 }
 
-function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexConversationIdChange }: ChatInputProps) {
+function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexConversationIdChange, sessionId }: ChatInputProps) {
   const [input, setInput] = useState("")
   const [stagedFiles, setStagedFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -179,41 +180,45 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
 
     let currentConvexConversationId = convexConversationId
 
-    if (isAuthenticated) {
-      if (!currentConvexConversationId) {
-        const newConversationId = await convexCreateConversation({
-          uuid: threadId,
-        })
-        currentConvexConversationId = newConversationId
-        onConvexConversationIdChange(newConversationId)
-        
-        const isNewThreadRoute = location.pathname === "/" || location.pathname === "/chat";
-        if (isNewThreadRoute) {
-          navigate(`/chat/${threadId}`)
+    if (!isAuthenticated && !sessionId) {
+      console.error("No session and not authenticated.")
+      return
+    }
+
+    if (!currentConvexConversationId) {
+      const newConversationId = await convexCreateConversation({
+        uuid: threadId,
+        sessionId: isAuthenticated ? undefined : sessionId ?? undefined,
+      })
+      currentConvexConversationId = newConversationId
+      onConvexConversationIdChange(newConversationId)
+
+      const isNewThreadRoute = location.pathname === "/" || location.pathname === "/chat"
+      if (isNewThreadRoute) {
+        navigate(`/chat/${threadId}`)
+      }
+    }
+
+    if (currentConvexConversationId) {
+      try {
+        let attachments
+        if (currentFiles.length > 0) {
+          attachments = await uploadFiles(currentFiles)
         }
-      }
 
-      const modelConfig = getModelConfig(selectedModel)
-      const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined
-      
-      // Process attachments
-      let attachments
-      if (currentFiles.length > 0) {
-        attachments = await uploadFiles(currentFiles)
-      }
+        const modelConfig = getModelConfig(selectedModel)
+        const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined
 
-      const payload = {
+        await sendMessage({
         conversationId: currentConvexConversationId,
         content: currentInput,
         model: selectedModel,
-        userApiKey: userApiKeyForModel || undefined,
+          userApiKey: userApiKeyForModel || undefined,
         isWebSearchEnabled: isWebSearchEnabled,
         isThinkingEnabled: isThinkingEnabled,
         attachmentRefs: attachments,
-      }
-
-      try {
-        await sendMessage(payload)
+          sessionId: isAuthenticated ? undefined : sessionId ?? undefined,
+        })
       } catch (error) {
         console.error("[ChatInput] 'messages.send' mutation call failed:", error)
         // Restore input and files on error
@@ -221,13 +226,13 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
         setStagedFiles(currentFiles)
       }
     } else {
-      console.warn("[ChatInput] Attempted to send message while unauthenticated.")
+      console.error("Could not get or create a conversation ID.")
     }
   }, [
     input, stagedFiles, isDisabled, sendMessage, convexConversationId, onConvexConversationIdChange,
     isAuthenticated, convexCreateConversation, threadId, location.pathname, navigate,
     selectedModel, getKey, hasUserKey, adjustHeight, isWebSearchEnabled, isThinkingEnabled, uploadFiles,
-    generateUploadUrl, saveAttachment
+    generateUploadUrl, saveAttachment, sessionId
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

@@ -5,12 +5,12 @@ import ChatInput from "./ChatInput"
 import ChatRunSettings from "./ChatRunSettings"
 import ScrollIndicator from "./ScrollIndicator"
 import type { UIMessage } from "ai"
-import { useModelStore } from "@/frontend/stores/ModelStore"
 import { useConversationByUuid, useMessagesByUuid } from "@/lib/convex-hooks"
 import { useTokenCounter } from "@/frontend/hooks/useTokenCounter"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useConvexAuth } from "convex/react"
 import type { Id } from "@/convex/_generated/dataModel"
+import { useSession } from "../hooks/useSession"
 import { MESSAGE_ROLES } from "@/convex/constants"
 
 interface ChatProps {
@@ -18,29 +18,28 @@ interface ChatProps {
 }
 
 export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
-  const selectedModel = useModelStore((state) => state.selectedModel)
-  
   const [convexConversationId, setConvexConversationId] = useState<Id<"conversations"> | null>(null)
   const { isAuthenticated } = useConvexAuth()
+  const { sessionId } = useSession()
   const scrollContainerRef = useRef<HTMLElement>(null)
 
   // Find the Convex thread ID from the URL's UUID.
-  const existingThread = useConversationByUuid(isAuthenticated ? initialThreadUuid : undefined)
+  const existingThread = useConversationByUuid(initialThreadUuid, sessionId)
   
   useEffect(() => {
-    if (isAuthenticated && existingThread) {
+    if (existingThread) {
       setConvexConversationId(existingThread._id);
     } else {
       setConvexConversationId(null);
     }
-  }, [isAuthenticated, existingThread, initialThreadUuid]);
+  }, [existingThread]);
 
   // Reactively fetch messages for the current thread from Convex.
-  const convexMessages = useMessagesByUuid(isAuthenticated ? initialThreadUuid : undefined)
+  const convexMessages = useMessagesByUuid(initialThreadUuid, sessionId)
 
   // Memoize the conversion from Convex doc format to the UI's UIMessage format.
   const messages: UIMessage[] = useMemo(() => {
-    if (!isAuthenticated || !convexMessages) return []
+    if (!convexMessages) return []
     return convexMessages.map((msg) => {
       const data: Record<string, any> = {
         reasoning: msg.reasoning, // Pass through the new reasoning field
@@ -112,7 +111,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
         data,
       };
     })
-  }, [convexMessages, isAuthenticated])
+  }, [convexMessages])
 
   // Count tokens in messages and update store
   useTokenCounter(messages);
@@ -153,6 +152,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
                 convexConversationId={convexConversationId}
                 onConvexConversationIdChange={setConvexConversationId}
                 isStreaming={isStreaming}
+                sessionId={sessionId}
               />
             </div>
           </div>

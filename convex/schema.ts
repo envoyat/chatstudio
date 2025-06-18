@@ -45,7 +45,8 @@ export default defineSchema({
   conversations: defineTable({
     uuid: v.string(), // UUID for URL routing
     title: v.string(),
-    userId: v.string(), // Clerk user ID
+    userId: v.optional(v.string()), // Clerk user ID
+    sessionId: v.optional(v.string()), // Guest session ID
     createdAt: v.number(),
     updatedAt: v.number(),
     lastMessageAt: v.number(),
@@ -54,12 +55,17 @@ export default defineSchema({
     branchedFromTitle: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
+    .index("by_session", ["sessionId"]) // Index for guest sessions
     .index("by_user_and_last_message", ["userId", "lastMessageAt"])
-    .index("by_uuid", ["uuid"]),
+    .index("by_session_and_last_message", ["sessionId", "lastMessageAt"]) // Index for guest sessions
+    .index("by_uuid", ["uuid"])
+    .index("by_user_and_uuid", ["userId", "uuid"])
+    .index("by_session_and_uuid", ["sessionId", "uuid"]),
 
   messages: defineTable({
     conversationId: v.id("conversations"),
     content: v.string(),
+    sessionId: v.optional(v.string()), // Guest session ID
     role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
     parts: v.optional(v.array(messagePartValidator)),
     createdAt: v.number(),
@@ -81,7 +87,8 @@ export default defineSchema({
     .index("by_message", ["messageId"]),
 
   attachments: defineTable({
-    userId: v.string(), // The identifier of the user who uploaded the file
+    userId: v.optional(v.string()), // The identifier of the user who uploaded the file
+    sessionId: v.optional(v.string()), // Guest session ID
     storageId: v.id("_storage"), // The ID of the file in Convex File Storage
     fileName: v.string(),
     contentType: v.string(),
@@ -90,5 +97,6 @@ export default defineSchema({
     promptTokens: v.optional(v.number()), // Tokens for the message turn this was included in
   })
     .index("by_userId", ["userId"])
+    .index("by_sessionId", ["sessionId"]) // Index for guest attachments
     .index("by_conversation", ["conversationId"]), // Index for quickly fetching by conversation
 }); 

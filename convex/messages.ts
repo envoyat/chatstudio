@@ -60,16 +60,23 @@ export const send = mutation({
     isWebSearchEnabled: v.optional(v.boolean()),
     isThinkingEnabled: v.optional(v.boolean()),
     attachmentRefs: v.optional(v.array(attachmentRefValidator)),
+    // Add sessionId for guest users
+    sessionId: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled, isThinkingEnabled, attachmentRefs }) => {
+  handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled, isThinkingEnabled, attachmentRefs, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Must be authenticated to send messages");
+
+    if (!identity && !sessionId) {
+      throw new Error("User must be authenticated or have a session ID.");
     }
 
     const conversation = await ctx.db.get(conversationId);
-    if (!conversation || conversation.userId !== identity.subject) {
+    if (!conversation) throw new Error("Conversation not found");
+
+    if (identity && conversation.userId !== identity.subject) {
+      throw new Error("Not authorised to send messages to this conversation");
+    } else if (!identity && conversation.sessionId !== sessionId) {
       throw new Error("Not authorised to send messages to this conversation");
     }
 
@@ -90,7 +97,13 @@ export const send = mutation({
       for (const attachmentRef of attachmentRefs) {
         // Verify the attachment exists and belongs to the user
         const attachment = await ctx.db.get(attachmentRef.attachmentId);
-        if (!attachment || attachment.userId !== identity.subject) {
+        if (!attachment) {
+          throw new Error(`Attachment not found: ${attachmentRef.fileName}`);
+        }
+        if (identity && attachment.userId !== identity.subject) {
+          throw new Error(`Attachment not owned by user: ${attachmentRef.fileName}`);
+        }
+        if (!identity && attachment.sessionId !== sessionId) {
           throw new Error(`Attachment not found or not owned by user: ${attachmentRef.fileName}`);
         }
 
@@ -128,6 +141,7 @@ export const send = mutation({
       conversationId,
       content,
       role: MESSAGE_ROLES.USER,
+      sessionId, // Store sessionId with the message
       parts: messageParts.length > 0 ? messageParts : undefined,
       createdAt: Date.now(),
       isComplete: true,
@@ -139,6 +153,7 @@ export const send = mutation({
       conversationId,
       content: "", // Start with an empty body
       role: MESSAGE_ROLES.ASSISTANT,
+      sessionId, // Store sessionId with the message
       createdAt: Date.now(),
       isComplete: false, // Mark as incomplete/streaming
     });
@@ -176,6 +191,8 @@ export const send = mutation({
 export const list = query({
   args: {
     conversationId: v.id("conversations"),
+    // Add sessionId for guest users
+    sessionId: v.optional(v.string()),
   },
   returns: v.array(
     v.object({
@@ -192,19 +209,26 @@ export const list = query({
       toolOutputs: v.optional(v.array(toolOutputValidator)),
     }),
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx, { conversationId, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-        return [];
+
+    if (!identity && !sessionId) {
+      return [];
     }
-    const conversation = await ctx.db.get(args.conversationId);
-    if (!conversation || conversation.userId !== identity.subject) {
+
+    const conversation = await ctx.db.get(conversationId);
+    if (!conversation) return [];
+
+    if (identity && conversation.userId !== identity.subject) {
+      return [];
+    }
+    if (!identity && conversation.sessionId !== sessionId) {
       return [];
     }
 
     return await ctx.db
       .query("messages")
-      .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", args.conversationId))
+      .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", conversationId))
       .order("asc")
       .collect();
   },
