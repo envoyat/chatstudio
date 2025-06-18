@@ -10,7 +10,7 @@ import useAutoResizeTextarea from "@/hooks/useAutoResizeTextArea"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
-import { AI_MODELS, type AIModel, isModelAvailable, getModelConfig } from "@/lib/models"
+import { AI_MODELS, type AIModel, isModelAvailable, getEffectiveModelConfig } from "@/lib/models"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useCreateConversation } from "@/lib/convex-hooks"
@@ -70,7 +70,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   
   const { getOrCreateSessionId } = useSessionStore()
   const selectedModel = useModelStore((state) => state.selectedModel)
-  const { getKey, hasUserKey } = useAPIKeyStore()
+  const { getKey } = useAPIKeyStore()
   const { isWebSearchEnabled, isThinkingEnabled, toggleWebSearch } = useChatRunSettingsStore()
   
   const isGuest = !isAuthenticated;
@@ -225,8 +225,11 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
       }
     }
 
-    const modelConfig = getModelConfig(selectedModel)
-    const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined
+    // Determine the effective configuration based on available keys
+    const effectiveConfig = getEffectiveModelConfig(selectedModel, getKey)
+
+    // We only send a user's API key. The backend handles the host key if needed.
+    const userApiKeyForModel = effectiveConfig.isUsingHostKey ? undefined : getKey(effectiveConfig.provider) || undefined
     
     // Process attachments only for authenticated users
     let attachments
@@ -237,8 +240,9 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
     const payload = {
       conversationId: currentConvexConversationId,
       content: currentInput,
-      model: selectedModel,
-      userApiKey: userApiKeyForModel || undefined,
+      model: effectiveConfig.modelId,       // Use the effective model ID
+      provider: effectiveConfig.provider,   // Use the effective provider
+      userApiKey: userApiKeyForModel,
       isWebSearchEnabled: isWebSearchEnabled,
       isThinkingEnabled: isThinkingEnabled,
       attachmentRefs: attachments,
@@ -257,7 +261,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   }, [
     input, stagedFiles, isDisabled, sendMessage, convexConversationId, onConvexConversationIdChange,
     isAuthenticated, convexCreateConversation, threadId, location.pathname, navigate,
-    selectedModel, getKey, hasUserKey, adjustHeight, isWebSearchEnabled, isThinkingEnabled,
+    selectedModel, getKey, adjustHeight, isWebSearchEnabled, isThinkingEnabled,
     uploadFiles, generateUploadUrl, saveAttachment, getOrCreateSessionId, isGuest,
   ])
 

@@ -12,10 +12,9 @@ export const AI_MODELS = [
   "GPT-4.1",
   "GPT-4.1-mini",
   "GPT-4.1-nano",
-  // "o3", // Commented out: Requires organization verification for BYOK users
+  "o3",
   "o4-mini",
   "DeepSeek R1",
-  "Gemini 2.0 Flash (OpenRouter)",
 ] as const
 
 export type AIModel = (typeof AI_MODELS)[number]
@@ -72,10 +71,10 @@ export const MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
     modelId: "gpt-4.1-nano",
     provider: PROVIDERS.OPENAI,
   },
-  // "o3": {
-  //   modelId: "o3-2025-04-16",
-  //   provider: PROVIDERS.OPENAI,
-  // },
+  "o3": {
+    modelId: "openai/o3",
+    provider: PROVIDERS.OPENROUTER,
+  },
   "o4-mini": {
     modelId: "o4-mini-2025-04-16",
     provider: PROVIDERS.OPENAI,
@@ -87,9 +86,5 @@ export const MODEL_CONFIGS: Record<AIModel, ModelConfig> = {
     provider: PROVIDERS.OPENROUTER,
     supportsReasoning: true,
     canToggleThinking: true,
-  },
-  "Gemini 2.0 Flash (OpenRouter)": {
-    modelId: "google/gemini-2.0-flash-exp:free",
-    provider: PROVIDERS.OPENROUTER,
-  },
+  }
 } 

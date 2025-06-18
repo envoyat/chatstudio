@@ -12,7 +12,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createSystemPrompt } from "./prompts";
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
-import { MESSAGE_ROLES, type MessageRole, PROVIDERS } from "./constants";
+import { MESSAGE_ROLES, type MessageRole, PROVIDERS, type Provider as ProviderType } from "./constants";
 import { webSearchArgsSchema, type MessagePart, type ToolCall, type ToolOutput } from "./types";
 
 // Convex validator for message parts
@@ -67,6 +67,7 @@ type ChatParams = {
   messageHistory: Doc<"messages">[];
   assistantMessageId: Doc<"messages">["_id"];
   model: string;
+  provider?: string;
   conversationId: Doc<"conversations">["_id"];
   userApiKey?: string;
   isWebSearchEnabled?: boolean;
@@ -153,6 +154,7 @@ export const chat = internalAction({
     messageHistory: v.array(messageValidator),
     assistantMessageId: v.id("messages"),
     model: v.string(),
+    provider: v.optional(v.string()),
     conversationId: v.id("conversations"),
     userApiKey: v.optional(v.string()),
     isWebSearchEnabled: v.optional(v.boolean()),
@@ -160,37 +162,42 @@ export const chat = internalAction({
     newAttachmentIds: v.optional(v.array(v.id("attachments"))),
   },
   returns: v.null(),
-  handler: async (ctx, { messageHistory, assistantMessageId, model, conversationId, userApiKey, isWebSearchEnabled, isThinkingEnabled, newAttachmentIds }: ChatParams) => {
+  handler: async (ctx, { messageHistory, assistantMessageId, model, provider: providerName, conversationId, userApiKey, isWebSearchEnabled, isThinkingEnabled, newAttachmentIds }: ChatParams) => {
     try {
-      const aiModelName = model as AIModel;
-      const modelConfig: ModelConfig = MODEL_CONFIGS[aiModelName as keyof typeof MODEL_CONFIGS];
-      const provider = modelConfig.provider;
+      // Find the base model config to get info like `supportsReasoning`
+      const modelConfig = Object.values(MODEL_CONFIGS).find(c => c.modelId === model) as ModelConfig | undefined;
+      
+      if (!modelConfig) {
+        throw new Error(`Configuration not found for model: ${model}`);
+      }
+      
+      // The provider to use is the one sent from the frontend, or the model's default provider.
+      const provider = (providerName as ProviderType) || modelConfig.provider;
 
       let providerInstance;
       if (provider === PROVIDERS.OPENAI) {
-          providerInstance = createOpenAI({
-              apiKey: userApiKey,
-          });
-      } else if (provider === PROVIDERS.GOOGLE) { 
-          // For Google models, fallback to host API key if user hasn't provided one
-          const googleApiKey = userApiKey || getApiKeyFromConvexEnv(PROVIDERS.GOOGLE);
-          providerInstance = createGoogleGenerativeAI({
-              apiKey: googleApiKey,
-          });
+        providerInstance = createOpenAI({ apiKey: userApiKey });
+      } else if (provider === PROVIDERS.GOOGLE) {
+        // Use user's key if provided, otherwise fall back to host key. This is the only place a host key is used.
+        const googleApiKey = userApiKey || getApiKeyFromConvexEnv(PROVIDERS.GOOGLE);
+        providerInstance = createGoogleGenerativeAI({ apiKey: googleApiKey });
       } else if (provider === PROVIDERS.ANTHROPIC) {
-          providerInstance = createAnthropic({
-              apiKey: userApiKey,
-          });
+        providerInstance = createAnthropic({ apiKey: userApiKey });
       } else if (provider === PROVIDERS.OPENROUTER) {
-          providerInstance = createOpenAI({
-              apiKey: userApiKey,
-              baseURL: "https://openrouter.ai/api/v1",
-          });
+        providerInstance = createOpenAI({
+          apiKey: userApiKey,
+          baseURL: "https://openrouter.ai/api/v1",
+        });
       } else {
         throw new Error(`Unsupported provider: ${provider}`);
       }
 
-      const systemPrompt = createSystemPrompt(aiModelName, isWebSearchEnabled);
+      // We need the original model name to create the correct system prompt
+      const originalModelName = (Object.keys(MODEL_CONFIGS) as AIModel[]).find(
+        (key) => MODEL_CONFIGS[key].modelId === model
+      ) as AIModel;
+
+      const systemPrompt = createSystemPrompt(originalModelName, isWebSearchEnabled);
       
       // Filter out the last message if it's an empty assistant placeholder, which Anthropic doesn't allow.
       const filteredHistory = messageHistory.filter(
