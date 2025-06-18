@@ -4,6 +4,7 @@ import Messages from "./Messages"
 import ChatInput from "./ChatInput"
 import ChatRunSettings from "./ChatRunSettings"
 import ScrollIndicator from "./ScrollIndicator"
+import WelcomeScreen from "./WelcomeScreen"
 import type { UIMessage } from "ai"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { useConversationByUuid, useMessagesByUuid } from "@/lib/convex-hooks"
@@ -243,13 +244,17 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
           <ScrollIndicator containerRef={scrollContainerRef} />
           
           <div className="w-full max-w-3xl mx-auto px-4 min-h-full flex flex-col">
-            {/* Messages with padding to account for sticky input */}
+            {/* Messages or Welcome Screen */}
             <div className="flex-1 pt-10">
-              <Messages
-                messages={messages}
-                isStreaming={isStreaming}
-                convexConversationId={convexConversationId}
-              />
+              {messages.length === 0 ? (
+                <WelcomeScreen />
+              ) : (
+                <Messages
+                  messages={messages}
+                  isStreaming={isStreaming}
+                  convexConversationId={convexConversationId}
+                />
+              )}
             </div>
             
             {/* Sticky ChatInput at bottom - only show if authenticated or public */}
