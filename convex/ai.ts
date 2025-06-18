@@ -10,7 +10,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from '@ai-sdk/anthropic';
 
 import { createSystemPrompt } from "./prompts";
-import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
+import { MODEL_CONFIGS, type AIModel, type ModelConfig, findModelConfigByModelId } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
 import { MESSAGE_ROLES, type MessageRole, PROVIDERS, type Provider as ProviderType } from "./constants";
 import { webSearchArgsSchema, type MessagePart, type ToolCall, type ToolOutput } from "./types";
@@ -165,7 +165,7 @@ export const chat = internalAction({
   handler: async (ctx, { messageHistory, assistantMessageId, model, provider: providerName, conversationId, userApiKey, isWebSearchEnabled, isThinkingEnabled, newAttachmentIds }: ChatParams) => {
     try {
       // Find the base model config to get info like `supportsReasoning`
-      const modelConfig = Object.values(MODEL_CONFIGS).find(c => c.modelId === model) as ModelConfig | undefined;
+      const modelConfig = findModelConfigByModelId(model);
       
       if (!modelConfig) {
         throw new Error(`Configuration not found for model: ${model}`);
@@ -194,7 +194,7 @@ export const chat = internalAction({
 
       // We need the original model name to create the correct system prompt
       const originalModelName = (Object.keys(MODEL_CONFIGS) as AIModel[]).find(
-        (key) => MODEL_CONFIGS[key].modelId === model
+        (key) => MODEL_CONFIGS[key].modelId === model || MODEL_CONFIGS[key].openRouterModelId === model
       ) as AIModel;
 
       const systemPrompt = createSystemPrompt(originalModelName, isWebSearchEnabled);
@@ -301,7 +301,7 @@ export const chat = internalAction({
       }
 
       const result = await streamText({
-        model: providerInstance(modelConfig.modelId),
+        model: providerInstance(model),
         messages: messagesForSdk,
         tools: isWebSearchEnabled ? tools : undefined,
         toolChoice: isWebSearchEnabled ? 'auto' : undefined,
