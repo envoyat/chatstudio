@@ -43,6 +43,16 @@ interface Provider {
 
 const providers: Provider[] = [
   {
+    key: 'openrouter',
+    name: 'OpenRouter',
+    placeholder: 'sk-or-...',
+    helpUrl: 'https://openrouter.ai/keys',
+          models: ['All Models'],
+    validateKey: (key: string) => key.startsWith('sk-or-') && key.length > 20,
+    validationMessage: 'API key format appears incorrect. OpenRouter keys typically start with "sk-or-"',
+    required: true,
+  },
+  {
     key: 'google',
     name: 'Google',
     placeholder: 'AIza...',
@@ -71,16 +81,6 @@ const providers: Provider[] = [
     models: ['GPT-4.1', 'GPT-4.1-mini', 'GPT-4.1-nano', 'o4-mini'],
     validateKey: (key: string) => key.startsWith('sk-') && key.length > 40,
     validationMessage: 'API key format appears incorrect. OpenAI keys typically start with "sk-"',
-    required: true,
-  },
-  {
-    key: 'openrouter',
-    name: 'OpenRouter',
-    placeholder: 'sk-or-...',
-    helpUrl: 'https://openrouter.ai/keys',
-          models: ['deepseek/deepseek-r1-0528:free', 'google/gemini-2.0-flash-exp:free'],
-    validateKey: (key: string) => key.startsWith('sk-or-') && key.length > 20,
-    validationMessage: 'API key format appears incorrect. OpenRouter keys typically start with "sk-or-"',
     required: true,
   }
 ]
