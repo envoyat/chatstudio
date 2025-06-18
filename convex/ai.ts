@@ -12,7 +12,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createSystemPrompt } from "./prompts";
 import { MODEL_CONFIGS, type AIModel, type ModelConfig } from "./models";
 import { getApiKeyFromConvexEnv } from "./utils/apiKeys";
-import { MESSAGE_ROLES, type MessageRole } from "./constants";
+import { MESSAGE_ROLES, type MessageRole, PROVIDERS } from "./constants";
 import { webSearchArgsSchema, type MessagePart, type ToolCall, type ToolOutput } from "./types";
 
 // Convex validator for message parts
@@ -47,7 +47,7 @@ const messageValidator = v.object({
   _id: v.id("messages"),
   _creationTime: v.number(),
   conversationId: v.id("conversations"),
-  role: v.union(v.literal("user" as MessageRole), v.literal("assistant" as MessageRole), v.literal("system" as MessageRole), v.literal("data" as MessageRole)),
+  role: v.union(v.literal(MESSAGE_ROLES.USER), v.literal(MESSAGE_ROLES.ASSISTANT), v.literal(MESSAGE_ROLES.SYSTEM), v.literal(MESSAGE_ROLES.DATA)),
   content: v.string(),
   parts: v.optional(v.array(messagePartValidator)),
   isComplete: v.optional(v.boolean()),
@@ -89,7 +89,7 @@ export const generateTitle = internalAction({
     title: v.optional(v.string()),
   }),
   handler: async (ctx, { prompt, isTitle, conversationId, messageId, userGoogleApiKey }) => {
-    let googleApiKey = userGoogleApiKey || getApiKeyFromConvexEnv("google");
+    let googleApiKey = userGoogleApiKey || getApiKeyFromConvexEnv(PROVIDERS.GOOGLE);
     
     if (!googleApiKey) {
       const errorMessage = userGoogleApiKey 
@@ -167,21 +167,21 @@ export const chat = internalAction({
       const provider = modelConfig.provider;
 
       let providerInstance;
-      if (provider === 'openai') {
+      if (provider === PROVIDERS.OPENAI) {
           providerInstance = createOpenAI({
               apiKey: userApiKey,
           });
-      } else if (provider === 'google') { 
+      } else if (provider === PROVIDERS.GOOGLE) { 
           // For Google models, fallback to host API key if user hasn't provided one
-          const googleApiKey = userApiKey || getApiKeyFromConvexEnv("google");
+          const googleApiKey = userApiKey || getApiKeyFromConvexEnv(PROVIDERS.GOOGLE);
           providerInstance = createGoogleGenerativeAI({
               apiKey: googleApiKey,
           });
-      } else if (provider === 'anthropic') {
+      } else if (provider === PROVIDERS.ANTHROPIC) {
           providerInstance = createAnthropic({
               apiKey: userApiKey,
           });
-      } else if (provider === 'openrouter') {
+      } else if (provider === PROVIDERS.OPENROUTER) {
           providerInstance = createOpenAI({
               apiKey: userApiKey,
               baseURL: "https://openrouter.ai/api/v1",
@@ -286,9 +286,9 @@ export const chat = internalAction({
         modelConfig.supportsReasoning &&
         (isThinkingEnabled || !modelConfig.canToggleThinking)
       ) {
-        if (provider === 'google') {
+        if (provider === PROVIDERS.GOOGLE) {
           providerOptions.google = { thinkingConfig: { includeThoughts: true } };
-        } else if (provider === 'anthropic') {
+        } else if (provider === PROVIDERS.ANTHROPIC) {
           providerOptions.anthropic = { thinking: { type: 'enabled' as const, budgetTokens: 8000 } };
         }
       }
@@ -433,12 +433,12 @@ export const chat = internalAction({
           
           // Get Google API key for title generation (fallback to host key if user hasn't provided one)
           let googleApiKey = undefined;
-          if (provider === 'google' && userApiKey) {
+          if (provider === PROVIDERS.GOOGLE && userApiKey) {
             // If the current provider is Google and user provided a key, use it
             googleApiKey = userApiKey;
           } else {
             // Otherwise, try to get host Google API key from environment
-            googleApiKey = getApiKeyFromConvexEnv("google");
+            googleApiKey = getApiKeyFromConvexEnv(PROVIDERS.GOOGLE);
           }
           
           // Schedule title generation

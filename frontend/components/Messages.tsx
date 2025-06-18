@@ -17,9 +17,14 @@ function PureMessages({
 }) {
   const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
   
+  // Early return if no messages to avoid unnecessary computation
+  if (!lastMessage) {
+    return <section className="flex flex-col"></section>;
+  }
+  
   // Determine if the assistant is generating a response
   const assistantIsGenerating =
-    lastMessage?.role === "assistant" &&
+    lastMessage.role === "assistant" &&
     (lastMessage.data as UIMessageData)?.isComplete === false;
 
   // Determine if we should show the "typing dots"
