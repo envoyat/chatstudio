@@ -19,6 +19,7 @@ import { useChatRunSettingsStore } from "../stores/ChatRunSettingsStore"
 import type { UIMessage } from "ai"
 import { useSessionStore } from "../stores/sessionStore"
 import GuestMessageLimit from "./GuestMessageLimit"
+import ReadOnlyPrompt from "./ReadOnlyPrompt"
 import { toast } from "sonner"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -29,6 +30,7 @@ interface ChatInputProps {
   onConvexConversationIdChange: React.Dispatch<React.SetStateAction<Id<"conversations"> | null>>
   isAuthenticated: boolean
   messages: UIMessage[]
+  isViewerMode: boolean;
 }
 
 // A component to render a preview of the staged file
@@ -57,7 +59,7 @@ const FilePreview = ({ file, onRemove }: { file: File; onRemove: () => void }) =
   )
 }
 
-function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexConversationIdChange, isAuthenticated, messages }: ChatInputProps) {
+function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexConversationIdChange, isAuthenticated, messages, isViewerMode }: ChatInputProps) {
   const [input, setInput] = useState("")
   const [stagedFiles, setStagedFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -269,6 +271,10 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
     adjustHeight()
+  }
+
+  if (isViewerMode) {
+    return <ReadOnlyPrompt />;
   }
 
   return (
