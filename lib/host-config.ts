@@ -14,15 +14,14 @@ export const getHostAPIKey = (provider: string): string | null => {
   }
 }
 
-// Client-side function to check if host keys are available
+// Client-side function to check if host keys are available for a given provider.
 export const hasHostAPIKey = (provider: string): boolean => {
-  // For now, we assume Google host key is available
-  // This could be enhanced to make an API call to check availability
-  return provider === "google"
-}
+  // The only host key available is for Google.
+  return provider === "google";
+};
 
-// Free models that can use host API keys
+// Free models that can use the host Google API key.
 export const FREE_MODELS_WITH_HOST_KEY = [
   "Gemini 2.5 Flash",
-  "Gemini 2.0 Flash"
-] as const 
+  "Gemini 2.5 Flash-Lite Preview",
+] as const; 

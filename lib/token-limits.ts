@@ -2,21 +2,20 @@ import { encode } from "gpt-tokenizer"
 import type { AIModel } from "@/lib/models"
 import type { UIMessage } from "ai"
 
-// Token limits for each model (placeholder values as requested)
+// Token limits for each model
 export const MODEL_TOKEN_LIMITS: Record<AIModel, number> = {
   "Gemini 2.5 Pro": 1048576,
   "Gemini 2.5 Flash": 1048576,
-  "Gemini 2.0 Flash": 128000,
+  "Gemini 2.5 Flash-Lite Preview": 128000,
   "Claude 4 Sonnet": 200000,
   "Claude Haiku 3.5": 200000,
   "Claude 4 Opus": 200000,
   "GPT-4.1": 1047576,
   "GPT-4.1-mini": 1047576,
   "GPT-4.1-nano": 1047576,
-  // "o3": 200000,
+  "o3": 200000,
   "o4-mini": 200000,
   "DeepSeek R1": 32000,
-  "Gemini 2.0 Flash (OpenRouter)": 128000,
 }
 
 export const getModelTokenLimit = (model: AIModel): number => {

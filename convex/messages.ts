@@ -56,6 +56,7 @@ export const send = mutation({
     conversationId: v.id("conversations"),
     content: v.string(),
     model: v.string(),
+    provider: v.optional(v.string()), // Accept the provider from the client
     userApiKey: v.optional(v.string()),
     isWebSearchEnabled: v.optional(v.boolean()),
     isThinkingEnabled: v.optional(v.boolean()),
@@ -63,7 +64,7 @@ export const send = mutation({
     sessionId: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled, isThinkingEnabled, attachmentRefs, sessionId }) => {
+  handler: async (ctx, { conversationId, content, model, provider, userApiKey, isWebSearchEnabled, isThinkingEnabled, attachmentRefs, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
     const conversation = await ctx.db.get(conversationId);
     const userId = identity?.subject;
@@ -174,6 +175,7 @@ export const send = mutation({
       assistantMessageId,
       conversationId,
       model,
+      provider, // Pass provider to the action
       userApiKey,
       isWebSearchEnabled,
       isThinkingEnabled,

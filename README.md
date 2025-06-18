@@ -201,7 +201,7 @@ chat-studio/
 ### Google AI (Gemini)
 - ✅ Gemini 2.5 Pro (`gemini-2.5-pro-preview-05-06`)
 - ✅ Gemini 2.5 Flash (`gemini-2.5-flash-preview-04-17`)
-- ✅ Gemini 2.0 Flash (`gemini-2.0-flash`)
+- ✅ Gemini 2.5 Flash-Lite Preview (`gemini-2.5-flash-lite-preview-06-17`)
 
 ### OpenAI (GPT)
 - ✅ GPT-4.1 (`gpt-4.1`)

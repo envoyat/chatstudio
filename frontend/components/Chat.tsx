@@ -13,6 +13,8 @@ import { useConvexAuth } from "convex/react"
 import { useUser } from "@clerk/nextjs"
 import type { Id } from "@/convex/_generated/dataModel"
 import { MESSAGE_ROLES } from "@/convex/constants"
+import { Button } from "@/components/ui/button"
+import { ArrowDown } from "lucide-react"
 
 interface ChatProps {
   threadId: string // UUID from URL
@@ -25,9 +27,15 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   const { isAuthenticated } = useConvexAuth()
   const { user } = useUser();
   const scrollContainerRef = useRef<HTMLElement>(null)
+  const chatInputWrapperRef = useRef<HTMLDivElement>(null)
+  const lastScrollTopRef = useRef<number>(0)
 
   // State to determine if the user is just a viewer of a public chat
   const [isViewerMode, setIsViewerMode] = useState(false);
+  
+  const [chatInputHeight, setChatInputHeight] = useState(0);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Find the Convex thread ID from the URL's UUID.
   const conversation = useConversationByUuid(initialThreadUuid)
@@ -138,10 +146,95 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
     return lastMessage.role === MESSAGE_ROLES.ASSISTANT && messageData?.isComplete === false;
   }, [messages]);
 
+  const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior,
+      });
+    }
+  };
+
+  const handleScrollToBottomClick = () => {
+    setAutoScroll(true);
+    // Give it a moment for the state to update before scrolling, 
+    // or just call scrollToBottom directly for immediate feedback.
+    scrollToBottom('smooth');
+  };
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    if (autoScroll) {
+      scrollToBottom('auto');
+    }
+  }, [messages, autoScroll]);
+
+  // Scroll event listeners for button visibility and user interaction
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 150;
+      
+      // Check if user scrolled up - cancel auto-scroll immediately
+      if (scrollTop < lastScrollTopRef.current && autoScroll) {
+        setAutoScroll(false);
+      }
+      
+      // Update the last scroll position
+      lastScrollTopRef.current = scrollTop;
+      
+      setShowScrollButton(!isAtBottom);
+      
+      if (isAtBottom) {
+        setAutoScroll(true);
+      }
+    };
+
+    const handleUserInteraction = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      if (scrollHeight - scrollTop - clientHeight > 150) {
+        setAutoScroll(false);
+      }
+    };
+    
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    container.addEventListener('wheel', handleUserInteraction, { passive: true });
+    container.addEventListener('touchstart', handleUserInteraction, { passive: true });
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      container.removeEventListener('wheel', handleUserInteraction);
+      container.removeEventListener('touchstart', handleUserInteraction);
+    };
+  }, [scrollContainerRef.current, autoScroll]);
+
+  // Observer to track ChatInput height for button positioning
+  useEffect(() => {
+    const element = chatInputWrapperRef.current;
+    if (!element) return;
+
+    const observer = new ResizeObserver(() => {
+      // Use offsetHeight to get the full height including padding and border
+      setChatInputHeight(element.offsetHeight);
+    });
+
+    observer.observe(element);
+    // Set initial height to avoid a flicker
+    setChatInputHeight(element.offsetHeight);
+
+    return () => {
+      // Ensure we unobserve the element on cleanup
+      observer.unobserve(element);
+    };
+  }, []);
   return (
     <div className="relative w-full h-screen flex">
       {/* Main content area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col relative">
         <main 
           ref={scrollContainerRef}
           className="flex-1 overflow-y-auto relative no-scrollbar"
@@ -151,7 +244,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
           
           <div className="w-full max-w-3xl mx-auto px-4 min-h-full flex flex-col">
             {/* Messages with padding to account for sticky input */}
-            <div className="flex-1 pt-10 pb-32">
+            <div className="flex-1 pt-10">
               <Messages
                 messages={messages}
                 isStreaming={isStreaming}
@@ -160,7 +253,7 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
             </div>
             
             {/* Sticky ChatInput at bottom - only show if authenticated or public */}
-            <div className="sticky bottom-0 pb-4">
+            <div className="sticky bottom-0 pb-4" ref={chatInputWrapperRef}>
               <ChatInput
                 threadId={initialThreadUuid}
                 convexConversationId={convexConversationId}
@@ -173,6 +266,19 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
             </div>
           </div>
         </main>
+        
+        {/* Scroll to bottom button */}
+        {showScrollButton && (
+          <Button
+            onClick={handleScrollToBottomClick}
+            variant="outline"
+            size="icon"
+            className="absolute z-10 h-10 w-10 rounded-full shadow-md bg-background/80 backdrop-blur-sm left-1/2 -translate-x-1/2 transition-all duration-200"
+            style={{ bottom: `${chatInputHeight + 8}px` }} // 8px spacing above the input area
+          >
+            <ArrowDown className="h-5 w-5" />
+          </Button>
+        )}
       </div>
       
       {/* Settings panel - only show if authenticated */}
