@@ -20,6 +20,7 @@ import type { UIMessage } from "ai"
 import { useSessionStore } from "../stores/sessionStore"
 import GuestMessageLimit from "./GuestMessageLimit"
 import { toast } from "sonner"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface ChatInputProps {
   threadId: string
@@ -108,11 +109,13 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
+    if (isGuest) return;
     setIsDragging(true)
   }
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
+    if (isGuest) return;
     setIsDragging(false)
   }
 
@@ -223,9 +226,9 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
     const modelConfig = getModelConfig(selectedModel)
     const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined
     
-    // Process attachments
+    // Process attachments only for authenticated users
     let attachments
-    if (currentFiles.length > 0 && currentConvexConversationId) {
+    if (isAuthenticated && currentFiles.length > 0 && currentConvexConversationId) {
       attachments = await uploadFiles(currentFiles, currentConvexConversationId)
     }
 
@@ -328,17 +331,30 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
                     >
                       <Globe className="h-4 w-4" />
                     </Button>
-                    <Button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      aria-label="Attach file"
-                      disabled={isStreaming || isGuest}
-                    >
-                      <Paperclip className="h-4 w-4" />
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span tabIndex={0}>
+                            <Button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2"
+                              aria-label="Attach file"
+                              disabled={isStreaming || isGuest}
+                            >
+                              <Paperclip className="h-4 w-4" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {isGuest && (
+                          <TooltipContent>
+                            <p>Please sign in to attach files.</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
                     <input
                       type="file"
                       ref={fileInputRef}

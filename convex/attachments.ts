@@ -26,26 +26,16 @@ export const saveAttachment = mutation({
     fileName: v.string(),
     contentType: v.string(),
     conversationId: v.optional(v.id("conversations")),
-    sessionId: v.optional(v.string()),
   },
   returns: v.id("attachments"),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-
-    let userId, sessionId;
-    if (identity) {
-      userId = identity.subject;
-    } else if (args.sessionId) {
-      sessionId = args.sessionId;
-    } else {
-      throw new Error(
-        "Authentication or session ID required to save attachment.",
-      );
+    if (!identity) {
+      throw new Error("Not authenticated");
     }
 
     const attachmentId = await ctx.db.insert("attachments", {
-      userId,
-      sessionId,
+      userId: identity.subject,
       storageId: args.storageId,
       fileName: args.fileName,
       contentType: args.contentType,
@@ -81,8 +71,7 @@ export const getAttachmentsForConversation = query({
     v.object({
       _id: v.id("attachments"),
       _creationTime: v.number(),
-      userId: v.optional(v.string()),
-      sessionId: v.optional(v.string()),
+      userId: v.string(),
       storageId: v.id("_storage"),
       fileName: v.string(),
       contentType: v.string(),
@@ -128,8 +117,7 @@ export const getAttachmentsForUser = query({
     v.object({
       _id: v.id("attachments"),
       _creationTime: v.number(),
-      userId: v.optional(v.string()),
-      sessionId: v.optional(v.string()),
+      userId: v.string(),
       storageId: v.id("_storage"),
       fileName: v.string(),
       contentType: v.string(),
@@ -200,8 +188,7 @@ export const getAttachment = query({
     v.object({
       _id: v.id("attachments"),
       _creationTime: v.number(),
-      userId: v.optional(v.string()),
-      sessionId: v.optional(v.string()),
+      userId: v.string(),
       storageId: v.id("_storage"),
       fileName: v.string(),
       contentType: v.string(),

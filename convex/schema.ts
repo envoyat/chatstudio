@@ -84,8 +84,7 @@ export default defineSchema({
     .index("by_message", ["messageId"]),
 
   attachments: defineTable({
-    userId: v.optional(v.string()), // The identifier of the user who uploaded the file
-    sessionId: v.optional(v.string()), // Guest session ID for the uploader
+    userId: v.string(), // The identifier of the user who uploaded the file. Login required.
     storageId: v.id("_storage"), // The ID of the file in Convex File Storage
     fileName: v.string(),
     contentType: v.string(),
@@ -94,6 +93,5 @@ export default defineSchema({
     promptTokens: v.optional(v.number()), // Tokens for the message turn this was included in
   })
     .index("by_userId", ["userId"])
-    .index("by_conversation", ["conversationId"]) // Index for quickly fetching by conversation
-    .index("by_sessionId", ["sessionId"]),
+    .index("by_conversation", ["conversationId"]),
 }); 
