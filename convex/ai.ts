@@ -293,11 +293,11 @@ export const chat = internalAction({
         modelConfig.supportsReasoning &&
         (isThinkingEnabled || !modelConfig.canToggleThinking)
       ) {
-        if (provider === PROVIDERS.GOOGLE) {
-          providerOptions.google = { thinkingConfig: { includeThoughts: true } };
-        } else if (provider === PROVIDERS.ANTHROPIC) {
-          providerOptions.anthropic = { thinking: { type: 'enabled' as const, budgetTokens: 8000 } };
-        } else if (provider === PROVIDERS.OPENROUTER) {
+        // Check if we're using OpenRouter (either natively or as fallback)
+        // OpenRouter model IDs typically contain a slash (e.g., "anthropic/claude-sonnet-4", "deepseek/deepseek-r1")
+        const isUsingOpenRouter = provider === PROVIDERS.OPENROUTER || model.includes('/');
+        
+        if (isUsingOpenRouter) {
           // For OpenRouter, use their unified reasoning parameter
           // This works for reasoning models like deepseek/deepseek-r1, anthropic/claude-sonnet-4, etc.
           providerOptions.openrouter = {
@@ -305,6 +305,10 @@ export const chat = internalAction({
               max_tokens: 8000, // Use max_tokens approach which works for Anthropic models via OpenRouter
             },
           };
+        } else if (provider === PROVIDERS.GOOGLE) {
+          providerOptions.google = { thinkingConfig: { includeThoughts: true } };
+        } else if (provider === PROVIDERS.ANTHROPIC) {
+          providerOptions.anthropic = { thinking: { type: 'enabled' as const, budgetTokens: 8000 } };
         }
       }
 
