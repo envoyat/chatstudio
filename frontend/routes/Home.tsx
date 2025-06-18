@@ -5,14 +5,18 @@ import Chat from "@/frontend/components/Chat"
 import { v4 as uuidv4 } from "uuid"
 import { useAPIKeyStore } from "../stores/APIKeyStore"
 import { useModelStore } from "../stores/ModelStore"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useConvexAuth } from "convex/react"
+import { useSessionStore } from "../stores/sessionStore"
 
 export default function Home() {
   const [isHydrated, setIsHydrated] = useState(false)
-  const [conversationId] = useState(() => uuidv4())
-  const hasRequiredKeys = useAPIKeyStore((state) => state.hasRequiredKeys())
   const { isAuthenticated } = useConvexAuth()
+  const { getOrCreateSessionId } = useSessionStore()
+
+  // Generate a stable UUID for the new chat session.
+  const conversationId = useMemo(() => uuidv4(), []);
+  const hasRequiredKeys = useAPIKeyStore((state) => state.hasRequiredKeys())
 
   useEffect(() => {
     // Wait for stores to hydrate
@@ -32,8 +36,13 @@ export default function Home() {
       setIsHydrated(true)
     }, 1000)
 
+    // Ensure guest users have a session ID when they land on the home page.
+    if (!isAuthenticated) {
+      getOrCreateSessionId()
+    }
+
     return () => clearTimeout(timeout)
-  }, [])
+  }, [isAuthenticated, getOrCreateSessionId])
 
   if (!isHydrated) {
     return (

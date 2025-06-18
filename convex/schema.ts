@@ -45,7 +45,8 @@ export default defineSchema({
   conversations: defineTable({
     uuid: v.string(), // UUID for URL routing
     title: v.string(),
-    userId: v.string(), // Clerk user ID
+    userId: v.optional(v.string()), // Clerk user ID
+    sessionId: v.optional(v.string()), // Guest session ID
     createdAt: v.number(),
     updatedAt: v.number(),
     lastMessageAt: v.number(),
@@ -56,7 +57,8 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_user_and_last_message", ["userId", "lastMessageAt"])
-    .index("by_uuid", ["uuid"]),
+    .index("by_uuid", ["uuid"])
+    .index("by_sessionId", ["sessionId"]),
 
   messages: defineTable({
     conversationId: v.id("conversations"),
@@ -82,7 +84,7 @@ export default defineSchema({
     .index("by_message", ["messageId"]),
 
   attachments: defineTable({
-    userId: v.string(), // The identifier of the user who uploaded the file
+    userId: v.string(), // The identifier of the user who uploaded the file. Login required.
     storageId: v.id("_storage"), // The ID of the file in Convex File Storage
     fileName: v.string(),
     contentType: v.string(),
@@ -91,5 +93,5 @@ export default defineSchema({
     promptTokens: v.optional(v.number()), // Tokens for the message turn this was included in
   })
     .index("by_userId", ["userId"])
-    .index("by_conversation", ["conversationId"]), // Index for quickly fetching by conversation
+    .index("by_conversation", ["conversationId"]),
 }); 

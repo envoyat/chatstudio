@@ -25,7 +25,7 @@ export const saveAttachment = mutation({
     storageId: v.id("_storage"),
     fileName: v.string(),
     contentType: v.string(),
-    conversationId: v.optional(v.id("conversations")), // Link to the conversation
+    conversationId: v.optional(v.id("conversations")),
   },
   returns: v.id("attachments"),
   handler: async (ctx, args) => {
@@ -33,10 +33,9 @@ export const saveAttachment = mutation({
     if (!identity) {
       throw new Error("Not authenticated");
     }
-    const userId = identity.subject;
 
     const attachmentId = await ctx.db.insert("attachments", {
-      userId,
+      userId: identity.subject,
       storageId: args.storageId,
       fileName: args.fileName,
       contentType: args.contentType,

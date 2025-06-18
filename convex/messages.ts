@@ -60,17 +60,34 @@ export const send = mutation({
     isWebSearchEnabled: v.optional(v.boolean()),
     isThinkingEnabled: v.optional(v.boolean()),
     attachmentRefs: v.optional(v.array(attachmentRefValidator)),
+    sessionId: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled, isThinkingEnabled, attachmentRefs }) => {
+  handler: async (ctx, { conversationId, content, model, userApiKey, isWebSearchEnabled, isThinkingEnabled, attachmentRefs, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Must be authenticated to send messages");
-    }
-
     const conversation = await ctx.db.get(conversationId);
-    if (!conversation || conversation.userId !== identity.subject) {
-      throw new Error("Not authorised to send messages to this conversation");
+    const userId = identity?.subject;
+
+    // Authorization check
+    if (userId) {
+      if (!conversation || conversation.userId !== userId) {
+        throw new Error("Not authorised to send messages to this conversation");
+      }
+    } else if (sessionId) {
+      if (!conversation || conversation.sessionId !== sessionId) {
+        throw new Error("Not authorised for this guest session.");
+      }
+      // Rate limit check for guests (10 user messages)
+      const messages = await ctx.db
+        .query("messages")
+        .withIndex("by_conversation", (q) => q.eq("conversationId", conversation._id))
+        .filter((q) => q.eq(q.field("role"), MESSAGE_ROLES.USER))
+        .collect();
+      if (messages.length >= 10) {
+        throw new Error("Guest message limit reached. Please log in to continue.");
+      }
+    } else {
+      throw new Error("Authentication or session ID is required.");
     }
 
     // Process attachments and create message parts
@@ -89,8 +106,8 @@ export const send = mutation({
     if (attachmentRefs && attachmentRefs.length > 0) {
       for (const attachmentRef of attachmentRefs) {
         // Verify the attachment exists and belongs to the user
-        const attachment = await ctx.db.get(attachmentRef.attachmentId);
-        if (!attachment || attachment.userId !== identity.subject) {
+        const attachment = await ctx.db.get(attachmentRef.attachmentId); // Guests can't upload, so only check userId
+        if (!attachment || attachment.userId !== identity?.subject) {
           throw new Error(`Attachment not found or not owned by user: ${attachmentRef.fileName}`);
         }
 
@@ -174,9 +191,7 @@ export const send = mutation({
 });
 
 export const list = query({
-  args: {
-    conversationId: v.id("conversations"),
-  },
+  args: { conversationId: v.id("conversations"), sessionId: v.optional(v.string()) },
   returns: v.array(
     v.object({
       _id: v.id("messages"),
@@ -192,29 +207,22 @@ export const list = query({
       toolOutputs: v.optional(v.array(toolOutputValidator)),
     }),
   ),
-  handler: async (ctx, args) => {
+  handler: async (ctx, { conversationId, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
-    const conversation = await ctx.db.get(args.conversationId);
-    
-    if (!conversation) {
-      return [];
-    }
+    const conversation = await ctx.db.get(conversationId);
 
-    // Allow access if:
-    // 1. User is authenticated and owns the conversation
-    // 2. Conversation is public
-    if (identity && conversation.userId === identity.subject) {
+    if (!conversation) return [];
+
+    const isOwner = identity && conversation.userId === identity.subject;
+    const isGuestOwner = !identity && sessionId && conversation.sessionId === sessionId;
+    const isPublic = conversation.isPublic;
+
+    const hasAccess = isOwner || isGuestOwner || isPublic;
+
+    if (hasAccess) {
       return await ctx.db
         .query("messages")
-        .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", args.conversationId))
-        .order("asc")
-        .collect();
-    }
-    
-    if (conversation.isPublic) {
-      return await ctx.db
-        .query("messages")
-        .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", args.conversationId))
+        .withIndex("by_conversation_and_created", (q) => q.eq("conversationId", conversationId))
         .order("asc")
         .collect();
     }

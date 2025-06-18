@@ -10,6 +10,7 @@ import { useConversationByUuid, useMessagesByUuid } from "@/lib/convex-hooks"
 import { useTokenCounter } from "@/frontend/hooks/useTokenCounter"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useConvexAuth } from "convex/react"
+import { useUser } from "@clerk/nextjs"
 import type { Id } from "@/convex/_generated/dataModel"
 import { MESSAGE_ROLES } from "@/convex/constants"
 
@@ -22,18 +23,30 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
   
   const [convexConversationId, setConvexConversationId] = useState<Id<"conversations"> | null>(null)
   const { isAuthenticated } = useConvexAuth()
+  const { user } = useUser();
   const scrollContainerRef = useRef<HTMLElement>(null)
 
+  // State to determine if the user is just a viewer of a public chat
+  const [isViewerMode, setIsViewerMode] = useState(false);
+
   // Find the Convex thread ID from the URL's UUID.
-  const existingThread = useConversationByUuid(initialThreadUuid)
+  const conversation = useConversationByUuid(initialThreadUuid)
   
   useEffect(() => {
-    if (existingThread) {
-      setConvexConversationId(existingThread._id);
+    if (conversation) {
+      setConvexConversationId(conversation._id);
+
+      // Determine if the user is a viewer. This is true if the chat is public
+      // and the current user is not the owner.
+      const isOwner = isAuthenticated && user && conversation.userId === user.id;
+      const isPublicViewer = (conversation.isPublic ?? false) && !isOwner;
+      setIsViewerMode(isPublicViewer);
+
     } else {
       setConvexConversationId(null);
+      setIsViewerMode(false);
     }
-  }, [existingThread, initialThreadUuid]);
+  }, [conversation, initialThreadUuid, isAuthenticated, user]);
 
   // Reactively fetch messages for the current thread from Convex.
   const convexMessages = useMessagesByUuid(initialThreadUuid)
@@ -147,16 +160,17 @@ export default function Chat({ threadId: initialThreadUuid }: ChatProps) {
             </div>
             
             {/* Sticky ChatInput at bottom - only show if authenticated or public */}
-            {isAuthenticated && (
-              <div className="sticky bottom-0 pb-4">
-                <ChatInput
-                  threadId={initialThreadUuid}
-                  convexConversationId={convexConversationId}
-                  onConvexConversationIdChange={setConvexConversationId}
-                  isStreaming={isStreaming}
-                />
-              </div>
-            )}
+            <div className="sticky bottom-0 pb-4">
+              <ChatInput
+                threadId={initialThreadUuid}
+                convexConversationId={convexConversationId}
+                onConvexConversationIdChange={setConvexConversationId}
+                isStreaming={isStreaming}
+                isAuthenticated={isAuthenticated}
+                messages={messages}
+                isViewerMode={isViewerMode}
+              />
+            </div>
           </div>
         </main>
       </div>

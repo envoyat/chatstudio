@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { memo, useState, useCallback, useMemo, useRef } from "react"
+import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { ChevronDown, Check, ArrowUpIcon, Globe, Paperclip, Trash2, File as FileIcon, Image as ImageIcon } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -11,18 +11,27 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { useAPIKeyStore } from "@/frontend/stores/APIKeyStore"
 import { useModelStore } from "@/frontend/stores/ModelStore"
 import { AI_MODELS, type AIModel, isModelAvailable, getModelConfig } from "@/lib/models"
-import { useConvexAuth } from "convex/react"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { useCreateConversation } from "@/lib/convex-hooks"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useChatRunSettingsStore } from "../stores/ChatRunSettingsStore"
+import type { UIMessage } from "ai"
+import { useSessionStore } from "../stores/sessionStore"
+import GuestMessageLimit from "./GuestMessageLimit"
+import ReadOnlyPrompt from "./ReadOnlyPrompt"
+import { toast } from "sonner"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { ROUTES } from "@/frontend/constants/routes"
 
 interface ChatInputProps {
   threadId: string
   isStreaming: boolean
   convexConversationId: Id<"conversations"> | null
   onConvexConversationIdChange: React.Dispatch<React.SetStateAction<Id<"conversations"> | null>>
+  isAuthenticated: boolean
+  messages: UIMessage[]
+  isViewerMode: boolean;
 }
 
 // A component to render a preview of the staged file
@@ -51,7 +60,7 @@ const FilePreview = ({ file, onRemove }: { file: File; onRemove: () => void }) =
   )
 }
 
-function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexConversationIdChange }: ChatInputProps) {
+function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexConversationIdChange, isAuthenticated, messages, isViewerMode }: ChatInputProps) {
   const [input, setInput] = useState("")
   const [stagedFiles, setStagedFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -60,13 +69,21 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   const navigate = useNavigate()
   const location = useLocation()
   
+  const { getOrCreateSessionId } = useSessionStore()
   const selectedModel = useModelStore((state) => state.selectedModel)
   const { getKey, hasUserKey } = useAPIKeyStore()
   const { isWebSearchEnabled, isThinkingEnabled, toggleWebSearch } = useChatRunSettingsStore()
   
-  const isDisabled = useMemo(() => (!input.trim() && stagedFiles.length === 0) || isStreaming, [input, stagedFiles.length, isStreaming])
+  const isGuest = !isAuthenticated;
+  const guestMessageCount = useMemo(() => {
+    if (!isGuest) return 0;
+    return messages.filter(m => m.role === 'user').length;
+  }, [messages, isGuest]);
+
+  const atGuestLimit = isGuest && guestMessageCount >= 10;
   
-  const { isAuthenticated } = useConvexAuth()
+  const isDisabled = useMemo(() => (!input.trim() && stagedFiles.length === 0) || isStreaming || atGuestLimit, [input, stagedFiles.length, isStreaming, atGuestLimit])
+  
   const convexCreateConversation = useCreateConversation()
   const sendMessage = useMutation(api.messages.send)
   const generateUploadUrl = useMutation(api.attachments.generateUploadUrl)
@@ -74,6 +91,10 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
 
   // File handling functions
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (isGuest) {
+      toast.info("Please sign in to attach files.");
+      return;
+    }
     const files = event.target.files
     if (files) {
       setStagedFiles((prev) => [...prev, ...Array.from(files)])
@@ -91,17 +112,23 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
+    if (isGuest) return;
     setIsDragging(true)
   }
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
+    if (isGuest) return;
     setIsDragging(false)
   }
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setIsDragging(false)
+    if (isGuest) {
+      toast.info("Please sign in to attach files.");
+      return;
+    }
     const files = e.dataTransfer.files
     if (files) {
       setStagedFiles((prev) => [...prev, ...Array.from(files)])
@@ -124,7 +151,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   }
 
   // Upload files to Convex storage and get attachment references
-  const uploadFiles = async (files: File[]) => {
+  const uploadFiles = async (files: File[], currentConvexConversationId: Id<"conversations">) => {
     const attachmentRefs = []
     
     for (const file of files) {
@@ -150,6 +177,7 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
           storageId: storageId,
           fileName: file.name,
           contentType: file.type,
+          conversationId: currentConvexConversationId,
         })
         
         attachmentRefs.push({
@@ -178,56 +206,60 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
     adjustHeight(true)
 
     let currentConvexConversationId = convexConversationId
+    let sessionId;
 
-    if (isAuthenticated) {
-      if (!currentConvexConversationId) {
-        const newConversationId = await convexCreateConversation({
-          uuid: threadId,
-        })
-        currentConvexConversationId = newConversationId
-        onConvexConversationIdChange(newConversationId)
-        
-        const isNewThreadRoute = location.pathname === "/" || location.pathname === "/chat";
-        if (isNewThreadRoute) {
-          navigate(`/chat/${threadId}`)
-        }
-      }
+    if (isGuest) {
+      sessionId = getOrCreateSessionId();
+    }
 
-      const modelConfig = getModelConfig(selectedModel)
-      const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined
+    if (!currentConvexConversationId) {
+      const newConversationId = await convexCreateConversation({
+        uuid: threadId,
+        sessionId: isGuest ? sessionId : undefined,
+      })
+      currentConvexConversationId = newConversationId
+      onConvexConversationIdChange(newConversationId)
       
-      // Process attachments
-      let attachments
-      if (currentFiles.length > 0) {
-        attachments = await uploadFiles(currentFiles)
+      const isNewThreadRoute = location.pathname === ROUTES.HOME || location.pathname === ROUTES.CHAT
+      if (isNewThreadRoute) {
+        navigate(`/chat/${threadId}`)
       }
+    }
 
-      const payload = {
-        conversationId: currentConvexConversationId,
-        content: currentInput,
-        model: selectedModel,
-        userApiKey: userApiKeyForModel || undefined,
-        isWebSearchEnabled: isWebSearchEnabled,
-        isThinkingEnabled: isThinkingEnabled,
-        attachmentRefs: attachments,
-      }
+    const modelConfig = getModelConfig(selectedModel)
+    const userApiKeyForModel = hasUserKey(modelConfig.provider) ? getKey(modelConfig.provider) : undefined
+    
+    // Process attachments only for authenticated users
+    let attachments
+    if (isAuthenticated && currentFiles.length > 0 && currentConvexConversationId) {
+      attachments = await uploadFiles(currentFiles, currentConvexConversationId)
+    }
 
-      try {
-        await sendMessage(payload)
-      } catch (error) {
-        console.error("[ChatInput] 'messages.send' mutation call failed:", error)
-        // Restore input and files on error
-        setInput(currentInput)
-        setStagedFiles(currentFiles)
-      }
-    } else {
-      console.warn("[ChatInput] Attempted to send message while unauthenticated.")
+    const payload = {
+      conversationId: currentConvexConversationId,
+      content: currentInput,
+      model: selectedModel,
+      userApiKey: userApiKeyForModel || undefined,
+      isWebSearchEnabled: isWebSearchEnabled,
+      isThinkingEnabled: isThinkingEnabled,
+      attachmentRefs: attachments,
+      sessionId: isGuest ? sessionId : undefined,
+    }
+
+    try {
+      await sendMessage(payload)
+    } catch (error) {
+      console.error("[ChatInput] 'messages.send' mutation call failed:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to send message.");
+      // Restore input and files on error
+      setInput(currentInput)
+      setStagedFiles(currentFiles)
     }
   }, [
     input, stagedFiles, isDisabled, sendMessage, convexConversationId, onConvexConversationIdChange,
     isAuthenticated, convexCreateConversation, threadId, location.pathname, navigate,
-    selectedModel, getKey, hasUserKey, adjustHeight, isWebSearchEnabled, isThinkingEnabled, uploadFiles,
-    generateUploadUrl, saveAttachment
+    selectedModel, getKey, hasUserKey, adjustHeight, isWebSearchEnabled, isThinkingEnabled,
+    uploadFiles, generateUploadUrl, saveAttachment, getOrCreateSessionId, isGuest,
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -240,6 +272,10 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
     adjustHeight()
+  }
+
+  if (isViewerMode) {
+    return <ReadOnlyPrompt />;
   }
 
   return (
@@ -274,57 +310,74 @@ function PureChatInput({ threadId, isStreaming, convexConversationId, onConvexCo
         )}
 
         <div className="relative">
-          <div className="flex flex-col">
-            <Textarea
-              id="chat-input"
-              value={input}
-              placeholder={stagedFiles.length > 0 ? "Add a message (optional)..." : "Type your message here..."}
-              className="w-full px-4 py-3 border-none shadow-none bg-transparent placeholder:text-muted-foreground resize-none focus-visible:ring-0 focus-visible:ring-offset-0 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30 scrollbar-thumb-rounded-full min-h-[72px]"
-              ref={textareaRef}
-              onKeyDown={handleKeyDown}
-              onChange={handleInputChange}
-              aria-label="Chat message input"
-              disabled={isStreaming}
-            />
-            <div className="h-12 flex items-center px-2 pt-2">
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-1">
-                  <ChatModelDropdown />
-                  <Button
-                    onClick={toggleWebSearch}
-                    variant={isWebSearchEnabled ? "default" : "ghost"}
-                    size="icon"
-                    className="h-8 w-8"
-                    aria-label="Toggle web search"
-                  >
-                    <Globe className="h-4 w-4" />
+          {atGuestLimit ? (
+            <GuestMessageLimit />
+          ) : (
+            <div className="flex flex-col">
+              <Textarea
+                id="chat-input"
+                value={input}
+                placeholder={stagedFiles.length > 0 ? "Add a message (optional)..." : "Type your message here..."}
+                className="w-full px-4 py-3 border-none shadow-none bg-transparent placeholder:text-muted-foreground resize-none focus-visible:ring-0 focus-visible:ring-offset-0 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30 scrollbar-thumb-rounded-full min-h-[72px]"
+                ref={textareaRef}
+                onKeyDown={handleKeyDown}
+                onChange={handleInputChange}
+                aria-label="Chat message input"
+                disabled={isStreaming}
+              />
+              <div className="h-12 flex items-center px-2 pt-2">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-1">
+                    <ChatModelDropdown />
+                    <Button
+                      onClick={toggleWebSearch}
+                      variant={isWebSearchEnabled ? "default" : "ghost"}
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label="Toggle web search"
+                    >
+                      <Globe className="h-4 w-4" />
+                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span tabIndex={0}>
+                            <Button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2"
+                              aria-label="Attach file"
+                              disabled={isStreaming || isGuest}
+                            >
+                              <Paperclip className="h-4 w-4" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {isGuest && (
+                          <TooltipContent>
+                            <p>Please sign in to attach files.</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      className="hidden"
+                      multiple
+                      accept="image/*"
+                    />
+                  </div>
+                  <Button onClick={handleSubmit} variant="default" size="icon" disabled={isDisabled} aria-label="Send message">
+                    <ArrowUpIcon size={18} />
                   </Button>
-                  <Button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    aria-label="Attach file"
-                    disabled={isStreaming}
-                  >
-                    <Paperclip className="h-4 w-4" />
-                  </Button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    multiple
-                    accept="image/*"
-                  />
                 </div>
-                <Button onClick={handleSubmit} variant="default" size="icon" disabled={isDisabled} aria-label="Send message">
-                  <ArrowUpIcon size={18} />
-                </Button>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
